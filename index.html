@@ -1,0 +1,491 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"/>
+<title>한중일 전략대전</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.2/babel.min.js"></script>
+<style>
+  *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent;}
+  body{background:#0d0d1a;overscroll-behavior:none;}
+  button{-webkit-appearance:none;appearance:none;transition:transform 0.1s,opacity 0.1s;}
+  button:active{transform:scale(0.93);}
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script type="text/babel">
+const{useState,useEffect,useCallback}=React;
+
+const BOARD=8,TOTAL=24;
+const TYPES=["rock","scissors","paper"];
+const LABEL={rock:"바위",scissors:"가위",paper:"보"};
+const EMOJI={rock:"🪨",scissors:"✂️",paper:"📄"};
+const DIRS=[[-1,0],[0,1],[1,0],[0,-1]];
+
+function rps(a,b){
+  if(a===b)return 0;
+  if((a==="rock"&&b==="scissors")||(a==="scissors"&&b==="paper")||(a==="paper"&&b==="rock"))return 1;
+  return -1;
+}
+const initBoard=()=>Array(BOARD).fill(null).map(()=>Array(BOARD).fill(null));
+const countOnBoard=(board,player)=>board.flat().filter(c=>c?.player===player).length;
+const sumStones=s=>s.rock+s.scissors+s.paper;
+
+function randomDist(){
+  let a=2,b=2,c=2,rem=18;
+  const x=Math.floor(Math.random()*rem);
+  const y=Math.floor(Math.random()*(rem-x));
+  return{rock:a+x,scissors:b+y,paper:c+(rem-x-y)};
+}
+
+function singleCombat(brd,pr,pc,er,ec){
+  const b=brd.map(r=>r.map(c=>c?{...c}:null));
+  const stone=b[pr][pc],enemy=b[er][ec];
+  if(!stone||!enemy)return{board:b,log:null,alive:false};
+  b[pr][pc]={...stone,revealed:true};
+  b[er][ec]={...enemy,revealed:true};
+  const res=rps(stone.type,enemy.type);
+  let log,alive;
+  if(res===1){
+    b[er][ec]=null;
+    log={text:`${EMOJI[stone.type]}${LABEL[stone.type]} vs ${LABEL[enemy.type]}${EMOJI[enemy.type]} → 승리!`,result:"win"};
+    alive=true;
+  }else if(res===-1){
+    b[pr][pc]=null;
+    log={text:`${EMOJI[stone.type]}${LABEL[stone.type]} vs ${LABEL[enemy.type]}${EMOJI[enemy.type]} → 패배`,result:"lose"};
+    alive=false;
+  }else{
+    b[pr][pc]=null;b[er][ec]=null;
+    log={text:`${EMOJI[stone.type]}${LABEL[stone.type]} vs ${LABEL[enemy.type]}${EMOJI[enemy.type]} → 무승부`,result:"draw"};
+    alive=false;
+  }
+  return{board:b,log,alive};
+}
+
+function resolveAllDirect(brd,row,col,player){
+  let b=brd.map(r=>r.map(c=>c?{...c}:null));
+  const logs=[];
+  const stone=b[row][col];
+  if(!stone)return{board:b,logs,survived:false};
+  const enemies=[];
+  for(const[dr,dc]of DIRS){
+    const nr=row+dr,nc=col+dc;
+    if(nr<0||nr>=BOARD||nc<0||nc>=BOARD)continue;
+    if(b[nr][nc]&&b[nr][nc].player!==player)enemies.push([nr,nc]);
+  }
+  enemies.sort(([ar,ac],[br2,bc])=>{
+    const ra=b[ar][ac]?rps(stone.type,b[ar][ac].type):0;
+    const rb=b[br2][bc]?rps(stone.type,b[br2][bc].type):0;
+    return rb-ra;
+  });
+  let alive=true,hadCombat=false;
+  for(const[er,ec]of enemies){
+    if(!alive)break;
+    const cur=b[row][col],opp=b[er][ec];
+    if(!cur||!opp)break;
+    hadCombat=true;
+    b[row][col]={...cur,revealed:true};
+    b[er][ec]={...opp,revealed:true};
+    const res=rps(cur.type,opp.type);
+    if(res===1){
+      b[er][ec]=null;
+      logs.push({text:`${EMOJI[cur.type]}${LABEL[cur.type]} vs ${LABEL[opp.type]}${EMOJI[opp.type]} → 승리!`,result:"win"});
+    }else if(res===-1){
+      b[row][col]=null;
+      logs.push({text:`${EMOJI[cur.type]}${LABEL[cur.type]} vs ${LABEL[opp.type]}${EMOJI[opp.type]} → 패배`,result:"lose"});
+      alive=false;
+    }else{
+      b[row][col]=null;b[er][ec]=null;
+      logs.push({text:`${EMOJI[cur.type]}${LABEL[cur.type]} vs ${LABEL[opp.type]}${EMOJI[opp.type]} → 무승부`,result:"draw"});
+      alive=false;
+    }
+  }
+  return{board:b,logs,survived:hadCombat&&alive&&!!b[row][col]};
+}
+
+function getBlockedSet(cells){
+  const s=new Set();
+  for(const[r,c]of cells){
+    for(const[dr,dc]of DIRS){
+      const nr=r+dr,nc=c+dc;
+      if(nr>=0&&nr<BOARD&&nc>=0&&nc<BOARD)s.add(`${nr},${nc}`);
+    }
+  }
+  return s;
+}
+
+function SetupScreen({onStart}){
+  const[dist,setDist]=useState({rock:8,scissors:8,paper:8});
+  const used=sumStones(dist),rem=TOTAL-used;
+  const adj=(type,d)=>{
+    if(dist[type]+d<0)return;
+    if(d>0&&rem<=0)return;
+    setDist(p=>({...p,[type]:p[type]+d}));
+  };
+  return(
+    <div style={{fontFamily:"'Noto Sans KR',system-ui,sans-serif",background:"#0d0d1a",minHeight:"100vh",color:"#e0e0f0",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",padding:"20px"}}>
+      <div style={{fontSize:"28px",marginBottom:"6px"}}>⚔️</div>
+      <h1 style={{fontSize:"20px",fontWeight:800,color:"#b8a4ff",margin:"0 0 4px",letterSpacing:"0.05em"}}>한중일 전략대전</h1>
+      <p style={{fontSize:"12px",color:"#555",margin:"0 0 28px",textAlign:"center",lineHeight:1.6}}>24개 돌을 원하는 대로 배분하세요<br/>상대는 내 분포를 알 수 없어요</p>
+
+      <div style={{background:"#13132a",borderRadius:"18px",padding:"22px 26px",width:"100%",maxWidth:"320px",marginBottom:"18px",boxShadow:"0 4px 24px #0005"}}>
+        <div style={{fontSize:"13px",color:"#888",marginBottom:"18px",textAlign:"center"}}>
+          배분 가능&nbsp;
+          <span style={{color:rem===0?"#5dff5d":"#ffe066",fontWeight:800,fontSize:"16px"}}>{rem}</span>
+          <span style={{color:"#555"}}>개 남음</span>
+        </div>
+        {TYPES.map(type=>(
+          <div key={type} style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:"16px"}}>
+            <div style={{fontSize:"15px",fontWeight:700,width:"80px"}}>{EMOJI[type]} {LABEL[type]}</div>
+            <div style={{display:"flex",alignItems:"center",gap:"14px"}}>
+              <button onClick={()=>adj(type,-1)}
+                style={{width:"34px",height:"34px",borderRadius:"8px",border:"none",background:"#2a1a4a",color:"#b8a4ff",fontSize:"20px",cursor:"pointer",fontWeight:700,lineHeight:1}}>−</button>
+              <span style={{fontSize:"22px",fontWeight:900,minWidth:"30px",textAlign:"center",color:"#e0e0f0"}}>{dist[type]}</span>
+              <button onClick={()=>adj(type,1)} disabled={rem<=0}
+                style={{width:"34px",height:"34px",borderRadius:"8px",border:"none",background:rem<=0?"#1a1a2e":"#2a1a4a",color:rem<=0?"#333":"#b8a4ff",fontSize:"20px",cursor:rem<=0?"not-allowed":"pointer",fontWeight:700,lineHeight:1}}>+</button>
+            </div>
+          </div>
+        ))}
+        <div style={{height:"10px",borderRadius:"5px",overflow:"hidden",display:"flex",marginTop:"8px",gap:"2px"}}>
+          <div style={{width:`${(dist.rock/TOTAL)*100}%`,background:"#6aaeff",borderRadius:"5px",transition:"width 0.2s"}}/>
+          <div style={{width:`${(dist.scissors/TOTAL)*100}%`,background:"#ff7070",borderRadius:"5px",transition:"width 0.2s"}}/>
+          <div style={{width:`${(dist.paper/TOTAL)*100}%`,background:"#ffe066",borderRadius:"5px",transition:"width 0.2s"}}/>
+        </div>
+        <div style={{display:"flex",justifyContent:"space-between",fontSize:"10px",color:"#444",marginTop:"5px",padding:"0 2px"}}>
+          <span>🪨 {dist.rock}</span><span>✂️ {dist.scissors}</span><span>📄 {dist.paper}</span>
+        </div>
+      </div>
+
+      <p style={{fontSize:"11px",color:"#444",marginBottom:"20px",textAlign:"center"}}>AI도 비공개로 분포를 설정합니다</p>
+
+      <button onClick={()=>rem===0&&onStart(dist)} disabled={rem!==0}
+        style={{background:rem===0?"#b8a4ff":"#1e1e38",color:rem===0?"#0d0d1a":"#444",fontWeight:800,border:"none",borderRadius:"12px",padding:"14px 36px",cursor:rem===0?"pointer":"not-allowed",fontSize:"16px",boxShadow:rem===0?"0 2px 16px #b8a4ff44":"none",transition:"all 0.2s"}}>
+        {rem===0?"게임 시작 →":`${rem}개 더 배분하세요`}
+      </button>
+
+      <div style={{marginTop:"28px",background:"#13132a",borderRadius:"12px",padding:"12px 16px",width:"100%",maxWidth:"320px",fontSize:"11px",color:"#555",lineHeight:1.8}}>
+        <div style={{color:"#888",fontWeight:700,marginBottom:"4px"}}>📖 규칙 요약</div>
+        <div>🪨 바위 &gt; ✂️ 가위 &gt; 📄 보 &gt; 🪨 바위</div>
+        <div>● 뒷면 돌을 배치, 4방향 인접 시 전투</div>
+        <div>🛡 승리 후 주변 4칸 1턴 동안 배치 불가</div>
+        <div>🏁 돌 소진 후 보드 위 돌 많은 쪽 승리</div>
+      </div>
+    </div>
+  );
+}
+
+function App(){
+  const[phase,setPhase]=useState("setup");
+  const[board,setBoard]=useState(initBoard());
+  const[pStones,setPStones]=useState(null);
+  const[aStones,setAStones]=useState(null);
+  const[selected,setSelected]=useState("rock");
+  const[turn,setTurn]=useState("player");
+  const[turnsLeft,setTurnsLeft]=useState(48);
+  const[totalTurns,setTotalTurns]=useState(48);
+  const[logs,setLogs]=useState([]);
+  const[gameOver,setGameOver]=useState(false);
+  const[winner,setWinner]=useState(null);
+  const[lastPlaced,setLastPlaced]=useState(null);
+  const[aiThinking,setAiThinking]=useState(false);
+  const[combatSelect,setCombatSelect]=useState(null);
+  const[cooldown,setCooldown]=useState(null);
+
+  const addLogs=nl=>setLogs(p=>[...nl,...p].slice(0,12));
+
+  const startGame=(playerDist)=>{
+    const aiDist=randomDist();
+    const tt=sumStones(playerDist)+sumStones(aiDist);
+    setPStones(playerDist);setAStones(aiDist);
+    setTotalTurns(tt);setTurnsLeft(tt);
+    setPhase("playing");
+  };
+
+  const checkEnd=useCallback((b,tl,ps,as)=>{
+    if(tl<=0||(sumStones(ps)===0&&sumStones(as)===0)){
+      const pc=countOnBoard(b,0),ac=countOnBoard(b,1);
+      setGameOver(true);
+      setWinner(pc>ac?"player":ac>pc?"ai":"draw");
+      return true;
+    }
+    return false;
+  },[]);
+
+  const handleClick=(row,col)=>{
+    if(combatSelect){handleCombatPick(row,col);return;}
+    if(turn!=="player"||gameOver||board[row][col]||!pStones)return;
+    if(pStones[selected]<=0)return;
+    if(cooldown?.for==="player"){
+      const blocked=getBlockedSet(cooldown.cells);
+      if(blocked.has(`${row},${col}`))return;
+    }
+    const nb=board.map(r=>r.map(c=>c?{...c}:null));
+    nb[row][col]={player:0,type:selected,revealed:false};
+    const nps={...pStones,[selected]:pStones[selected]-1};
+    setPStones(nps);setLastPlaced([row,col]);setCooldown(null);
+    const enemies=[];
+    for(const[dr,dc]of DIRS){
+      const nr=row+dr,nc=col+dc;
+      if(nr<0||nr>=BOARD||nc<0||nc>=BOARD)continue;
+      if(nb[nr][nc]&&nb[nr][nc].player!==0)enemies.push([nr,nc]);
+    }
+    if(enemies.length===0){
+      setBoard(nb);
+      const nt=turnsLeft-1;setTurnsLeft(nt);
+      if(!checkEnd(nb,nt,nps,aStones))setTurn("ai");
+    }else if(enemies.length===1){
+      const{board:resolved,log,alive}=singleCombat(nb,row,col,enemies[0][0],enemies[0][1]);
+      if(log)addLogs([log]);
+      if(alive)setCooldown({cells:[[row,col]],for:"ai"});
+      const nt=turnsLeft-1;setTurnsLeft(nt);
+      setBoard(resolved);
+      if(!checkEnd(resolved,nt,nps,aStones))setTurn("ai");
+    }else{
+      setBoard(nb);
+      setCombatSelect({row,col,remaining:enemies,nps});
+    }
+  };
+
+  const handleCombatPick=(er,ec)=>{
+    if(!combatSelect)return;
+    const{row,col,remaining,nps}=combatSelect;
+    if(!remaining.some(([r,c])=>r===er&&c===ec))return;
+    const{board:nb,log,alive}=singleCombat(board,row,col,er,ec);
+    if(log)addLogs([log]);
+    const newRemaining=remaining.filter(([r,c])=>!(r===er&&c===ec));
+    if(!alive||newRemaining.length===0){
+      const survived=alive&&!!nb[row][col];
+      if(survived)setCooldown({cells:[[row,col]],for:"ai"});
+      const nt=turnsLeft-1;setTurnsLeft(nt);
+      setBoard(nb);setCombatSelect(null);
+      if(!checkEnd(nb,nt,nps,aStones))setTurn("ai");
+    }else{
+      setBoard(nb);
+      setCombatSelect({row,col,remaining:newRemaining,nps});
+    }
+  };
+
+  useEffect(()=>{
+    if(turn!=="ai"||gameOver||!aStones)return;
+    setAiThinking(true);
+    const timer=setTimeout(()=>{
+      const blockedSet=cooldown?.for==="ai"?getBlockedSet(cooldown.cells):new Set();
+      setCooldown(null);
+      const empty=[];
+      for(let r=0;r<BOARD;r++)
+        for(let c=0;c<BOARD;c++)
+          if(!board[r][c]&&!blockedSet.has(`${r},${c}`))empty.push([r,c]);
+      const avail=TYPES.filter(t=>aStones[t]>0);
+      if(!empty.length||!avail.length){setAiThinking(false);setTurn("player");return;}
+      let move=null;
+      outer:for(const[r,c]of empty){
+        for(const[dr,dc]of DIRS){
+          const nr=r+dr,nc=c+dc;
+          if(nr<0||nr>=BOARD||nc<0||nc>=BOARD)continue;
+          const nb=board[nr][nc];
+          if(!nb||nb.player!==0||!nb.revealed)continue;
+          for(const type of avail){
+            if(rps(type,nb.type)===1){move={r,c,type};break outer;}
+          }
+        }
+      }
+      if(!move){
+        const safe=empty.filter(([r,c])=>{
+          for(const[dr,dc]of DIRS){
+            const nr=r+dr,nc=c+dc;
+            if(nr<0||nr>=BOARD||nc<0||nc>=BOARD)continue;
+            const nb=board[nr][nc];
+            if(nb?.player===0&&nb.revealed&&avail[0]&&rps(avail[0],nb.type)===-1)return false;
+          }
+          return true;
+        });
+        const pool=safe.length?safe:empty;
+        const[r,c]=pool[Math.floor(Math.random()*pool.length)];
+        const type=avail[Math.floor(Math.random()*avail.length)];
+        move={r,c,type};
+      }
+      const nb=board.map(r=>r.map(c=>c?{...c}:null));
+      nb[move.r][move.c]={player:1,type:move.type,revealed:false};
+      const{board:resolved,logs:nl,survived}=resolveAllDirect(nb,move.r,move.c,1);
+      const nas={...aStones,[move.type]:aStones[move.type]-1};
+      const nt=turnsLeft-1;
+      setBoard(resolved);setAStones(nas);addLogs(nl.map(l=>({...l,isAI:true})));
+      setTurnsLeft(nt);setLastPlaced([move.r,move.c]);setAiThinking(false);
+      if(survived)setCooldown({cells:[[move.r,move.c]],for:"player"});
+      if(!checkEnd(resolved,nt,pStones,nas))setTurn("player");
+    },700);
+    return()=>clearTimeout(timer);
+  },[turn,board,aStones,pStones,turnsLeft,gameOver,checkEnd,cooldown]);
+
+  const reset=()=>{
+    setBoard(initBoard());setPStones(null);setAStones(null);
+    setSelected("rock");setTurn("player");setTurnsLeft(48);setTotalTurns(48);
+    setLogs([]);setGameOver(false);setWinner(null);
+    setLastPlaced(null);setAiThinking(false);setCombatSelect(null);
+    setCooldown(null);setPhase("setup");
+  };
+
+  if(phase==="setup")return <SetupScreen onStart={startGame}/>;
+
+  const pc=countOnBoard(board,0),ac=countOnBoard(board,1);
+  const pTotal=pStones?sumStones(pStones):0;
+  const aTotal=aStones?sumStones(aStones):0;
+  const progress=totalTurns>0?Math.round(((totalTurns-turnsLeft)/totalTurns)*100):0;
+  const isSelecting=!!combatSelect;
+  const playerBlockedSet=cooldown?.for==="player"?getBlockedSet(cooldown.cells):new Set();
+  const cooldownCellSet=new Set((cooldown?.cells||[]).map(([r,c])=>`${r},${c}`));
+
+  // 셀 사이즈: 화면 너비에 맞게
+  const cellSize=Math.min(42,Math.floor((window.innerWidth-28)/BOARD));
+
+  return(
+    <div style={{fontFamily:"'Noto Sans KR',system-ui,sans-serif",background:"#0d0d1a",minHeight:"100vh",color:"#e0e0f0",padding:"10px",display:"flex",flexDirection:"column",alignItems:"center"}}>
+      <h1 style={{fontSize:"15px",fontWeight:800,color:"#b8a4ff",margin:"0 0 8px",letterSpacing:"0.05em"}}>⚔️ 한중일 전략대전</h1>
+
+      {/* 스코어 바 */}
+      <div style={{width:"100%",maxWidth:"360px",background:"#13132a",borderRadius:"14px",padding:"10px 16px",marginBottom:"8px",display:"flex",justifyContent:"space-between",alignItems:"center",boxShadow:"0 2px 12px #0004"}}>
+        <div style={{textAlign:"center"}}>
+          <div style={{fontSize:"11px",color:"#6aaeff",fontWeight:700}}>🔵 나</div>
+          <div style={{fontSize:"30px",fontWeight:900,color:"#6aaeff",lineHeight:1.1}}>{pc}</div>
+          {pStones&&<div style={{fontSize:"9px",color:"#335577"}}>{EMOJI.rock}{pStones.rock} {EMOJI.scissors}{pStones.scissors} {EMOJI.paper}{pStones.paper}</div>}
+          <div style={{fontSize:"9px",color:"#334"}}>잔여 {pTotal}</div>
+        </div>
+        <div style={{textAlign:"center"}}>
+          <div style={{fontSize:"20px",fontWeight:800,color:turnsLeft<=10?"#ff6b6b":"#ccc",lineHeight:1}}>{turnsLeft}</div>
+          <div style={{fontSize:"8px",color:"#444",marginBottom:"3px"}}>남은 턴</div>
+          <div style={{width:"60px",height:"4px",background:"#1e1e30",borderRadius:"2px",margin:"0 auto 4px"}}>
+            <div style={{width:`${progress}%`,height:"100%",background:"#b8a4ff",borderRadius:"2px",transition:"width 0.3s"}}/>
+          </div>
+          <div style={{fontSize:"10px",fontWeight:700,padding:"3px 8px",borderRadius:"20px",
+            background:isSelecting?"#3a2a00":turn==="player"?"#162816":"#281616",
+            color:isSelecting?"#ffe066":turn==="player"?"#5dff5d":"#ff7070"}}>
+            {isSelecting?"대상 선택":aiThinking?"AI…":turn==="player"?"내 차례":"AI 차례"}
+          </div>
+        </div>
+        <div style={{textAlign:"center"}}>
+          <div style={{fontSize:"11px",color:"#ff7070",fontWeight:700}}>🔴 AI</div>
+          <div style={{fontSize:"30px",fontWeight:900,color:"#ff7070",lineHeight:1.1}}>{ac}</div>
+          <div style={{fontSize:"9px",color:"#442222"}}>??? ??? ???</div>
+          <div style={{fontSize:"9px",color:"#334"}}>잔여 {aTotal}</div>
+        </div>
+      </div>
+
+      {/* 전투 선택 배너 */}
+      {isSelecting&&(
+        <div style={{width:"100%",maxWidth:"360px",background:"#2a2000",border:"1px solid #ffe066",borderRadius:"10px",padding:"8px 14px",marginBottom:"8px",textAlign:"center"}}>
+          <div style={{fontSize:"12px",color:"#ffe066",fontWeight:700}}>⚔ 먼저 싸울 적을 선택하세요</div>
+          <div style={{fontSize:"10px",color:"#aa9933",marginTop:"2px"}}>반짝이는 적 돌 탭 · 선택 순간 공개 · 남은 전투 {combatSelect.remaining.length}개</div>
+        </div>
+      )}
+
+      {/* 쿨다운 배너 */}
+      {!isSelecting&&cooldown?.for==="player"&&turn==="player"&&(
+        <div style={{width:"100%",maxWidth:"360px",background:"#2a0a0a",border:"1px solid #ff4444",borderRadius:"10px",padding:"7px 14px",marginBottom:"8px",textAlign:"center"}}>
+          <div style={{fontSize:"11px",color:"#ff6666",fontWeight:700}}>🛡 빨간 칸 배치 불가 (이번 턴 한정)</div>
+        </div>
+      )}
+
+      {/* 보드 */}
+      <div style={{display:"grid",gridTemplateColumns:`repeat(${BOARD},1fr)`,gap:"3px",marginBottom:"10px",width:"100%",maxWidth:"360px"}}>
+        {board.map((row,r)=>board[r].map((cell,c)=>{
+          const isLast=lastPlaced?.[0]===r&&lastPlaced?.[1]===c;
+          const isMyPlaced=combatSelect&&combatSelect.row===r&&combatSelect.col===c;
+          const isTarget=combatSelect&&combatSelect.remaining.some(([er,ec])=>er===r&&ec===c);
+          const isCooldownCell=cooldownCellSet.has(`${r},${c}`);
+          const isBlockedCell=playerBlockedSet.has(`${r},${c}`)&&!cell;
+
+          let bg="#181830",border="1px solid #222244";
+          if(cell?.player===0&&!cell?.revealed){bg="#112244";border="1px solid #2255aa";}
+          if(cell?.player===1&&!cell?.revealed){bg="#2a1111";border="1px solid #aa2222";}
+          if(cell?.player===0&&cell?.revealed){bg="#0a1f3d";border="2px solid #6aaeff";}
+          if(cell?.player===1&&cell?.revealed){bg="#3d0a0a";border="2px solid #ff7070";}
+          if(isLast&&!isMyPlaced)border="2px solid #ffe066";
+          if(isMyPlaced){bg="#1a3a00";border="2px solid #5dff5d";}
+          if(isTarget){bg="#3a1a00";border="2px solid #ffe066";}
+          if(isCooldownCell&&cell){border="2px solid #ff4444";}
+          if(isBlockedCell){bg="#3a0808";border="1px solid #ff3333";}
+
+          const canClick=isTarget||((!cell)&&turn==="player"&&!gameOver&&!isSelecting&&!isBlockedCell);
+
+          return(
+            <div key={`${r}-${c}`} onClick={()=>handleClick(r,c)}
+              style={{
+                width:`${cellSize}px`,height:`${cellSize}px`,
+                background:bg,border,borderRadius:"5px",
+                display:"flex",alignItems:"center",justifyContent:"center",
+                cursor:canClick?"pointer":isBlockedCell?"not-allowed":"default",
+                fontSize:cell?.revealed?`${cellSize*0.46}px`:`${cellSize*0.36}px`,
+                boxShadow:isTarget?"0 0 10px #ffe06699":isCooldownCell&&cell?"0 0 8px #ff444455":isLast&&!isMyPlaced?"0 0 8px #ffe06644":"none",
+              }}>
+              {isBlockedCell
+                ?<span style={{fontSize:`${cellSize*0.3}px`,color:"#ff3333",opacity:0.7}}>✕</span>
+                :cell?(cell.revealed?EMOJI[cell.type]:<span style={{color:cell.player===0?"#5599cc":"#cc4444"}}>●</span>):""}
+            </div>
+          );
+        }))}
+      </div>
+
+      {/* 돌 선택 버튼 */}
+      {!gameOver&&!isSelecting&&pStones&&(
+        <div style={{display:"flex",gap:"8px",marginBottom:"10px"}}>
+          {TYPES.map(type=>(
+            <button key={type} onClick={()=>setSelected(type)}
+              disabled={pStones[type]<=0||turn!=="player"}
+              style={{
+                padding:"8px 13px",borderRadius:"10px",fontSize:"13px",fontWeight:700,
+                cursor:pStones[type]>0&&turn==="player"?"pointer":"not-allowed",
+                border:selected===type?"2px solid #b8a4ff":"2px solid transparent",
+                background:selected===type?"#221a44":"#151525",
+                color:pStones[type]<=0?"#333":"#e0e0f0",
+                opacity:pStones[type]<=0?0.4:1,
+                transform:selected===type?"scale(1.06)":"scale(1)",
+              }}>
+              {EMOJI[type]} {LABEL[type]}<br/>
+              <span style={{fontSize:"11px",color:selected===type?"#9988cc":"#555"}}>({pStones[type]}개)</span>
+            </button>
+          ))}
+        </div>
+      )}
+
+      {/* 게임 오버 */}
+      {gameOver&&(
+        <div style={{background:"#13132a",borderRadius:"16px",padding:"16px 24px",textAlign:"center",marginBottom:"10px",
+          border:`2px solid ${winner==="player"?"#5dff5d":winner==="ai"?"#ff6b6b":"#ffe066"}`,
+          boxShadow:`0 0 20px ${winner==="player"?"#5dff5d44":winner==="ai"?"#ff6b6b44":"#ffe06644"}`}}>
+          <div style={{fontSize:"26px",marginBottom:"6px"}}>{winner==="player"?"🏆 승리!":winner==="ai"?"💀 패배...":"🤝 무승부"}</div>
+          <div style={{fontSize:"13px",color:"#666",marginBottom:"12px"}}>나 {pc}개 · AI {ac}개</div>
+          <button onClick={reset} style={{background:"#b8a4ff",color:"#0d0d1a",fontWeight:800,border:"none",borderRadius:"10px",padding:"10px 24px",cursor:"pointer",fontSize:"14px"}}>처음으로</button>
+        </div>
+      )}
+
+      <div style={{fontSize:"10px",color:"#383850",marginBottom:"8px",textAlign:"center"}}>
+        🪨 &gt; ✂️ &gt; 📄 &gt; 🪨 &nbsp;·&nbsp; ● = 뒷면 &nbsp;·&nbsp; 4방향 인접 시 전투
+      </div>
+
+      {/* 전투 로그 */}
+      <div style={{width:"100%",maxWidth:"360px",background:"#0f0f20",borderRadius:"12px",padding:"10px 12px",marginBottom:"16px"}}>
+        <div style={{fontSize:"10px",color:"#333",fontWeight:700,marginBottom:"6px",letterSpacing:"0.05em"}}>⚔ 전투 로그</div>
+        {logs.length===0
+          ?<div style={{fontSize:"10px",color:"#222"}}>전투 발생 시 표시됩니다</div>
+          :logs.map((log,i)=>(
+            <div key={i} style={{fontSize:"10px",padding:"3px 0",borderBottom:"1px solid #181830",
+              color:(!log.isAI&&log.result==="win")||(log.isAI&&log.result==="lose")?"#6aaeff"
+                :(!log.isAI&&log.result==="lose")||(log.isAI&&log.result==="win")?"#ff7070":"#555"}}>
+              {log.isAI?"🔴 ":"🔵 "}{log.text}
+            </div>
+          ))
+        }
+      </div>
+
+      <div style={{fontSize:"9px",color:"#1e1e2e",marginBottom:"8px"}}>v6 · 8×8 · 총 {totalTurns}턴</div>
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById("root")).render(<App/>);
+</script>
+</body>
+</html>
