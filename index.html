@@ -2,28 +2,28 @@
 <html lang="ko">
 <head>
 <meta charset="UTF-8"/>
-<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"/>
-<title>한중일 전략대전</title>
+<meta name="viewport" content="width=device-width,initial-scale=1.0,maximum-scale=1.0,user-scalable=no"/>
+<title>한중일 전략대전 v7</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.2/babel.min.js"></script>
 <style>
-  *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent;}
-  body{background:#0d0d1a;overscroll-behavior:none;}
-  button{-webkit-appearance:none;appearance:none;transition:transform 0.1s,opacity 0.1s;}
-  button:active{transform:scale(0.93);}
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent;}
+body{background:#0d0d1a;overscroll-behavior:none;}
+button{-webkit-appearance:none;transition:transform 0.1s,opacity 0.1s;}
+button:active{transform:scale(0.92);}
 </style>
 </head>
 <body>
 <div id="root"></div>
 <script type="text/babel">
 const{useState,useEffect,useCallback}=React;
-
 const BOARD=8,TOTAL=24;
 const TYPES=["rock","scissors","paper"];
 const LABEL={rock:"바위",scissors:"가위",paper:"보"};
 const EMOJI={rock:"🪨",scissors:"✂️",paper:"📄"};
 const DIRS=[[-1,0],[0,1],[1,0],[0,-1]];
+const SC_RANGE=[[-2,0],[0,2],[2,0],[0,-2]]; // 가위 사정거리
 
 function rps(a,b){
   if(a===b)return 0;
@@ -31,152 +31,152 @@ function rps(a,b){
   return -1;
 }
 const initBoard=()=>Array(BOARD).fill(null).map(()=>Array(BOARD).fill(null));
+const initStones=()=>({rock:8,scissors:8,paper:8});
+const copyBoard=b=>b.map(r=>r.map(c=>c?{...c}:null));
 const countOnBoard=(board,player)=>board.flat().filter(c=>c?.player===player).length;
 const sumStones=s=>s.rock+s.scissors+s.paper;
+function randomDist(){let a=2,b=2,c=2,rem=18;const x=Math.floor(Math.random()*rem),y=Math.floor(Math.random()*(rem-x));return{rock:a+x,scissors:b+y,paper:c+(rem-x-y)};}
+function getBlockedSet(cells){const s=new Set();for(const[r,c]of cells)for(const[dr,dc]of DIRS){const nr=r+dr,nc=c+dc;if(nr>=0&&nr<BOARD&&nc>=0&&nc<BOARD)s.add(`${nr},${nc}`);}return s;}
 
-function randomDist(){
-  let a=2,b=2,c=2,rem=18;
-  const x=Math.floor(Math.random()*rem);
-  const y=Math.floor(Math.random()*(rem-x));
-  return{rock:a+x,scissors:b+y,paper:c+(rem-x-y)};
-}
-
+// 뒷면 1:1 전투
 function singleCombat(brd,pr,pc,er,ec){
-  const b=brd.map(r=>r.map(c=>c?{...c}:null));
-  const stone=b[pr][pc],enemy=b[er][ec];
-  if(!stone||!enemy)return{board:b,log:null,alive:false};
-  b[pr][pc]={...stone,revealed:true};
-  b[er][ec]={...enemy,revealed:true};
-  const res=rps(stone.type,enemy.type);
-  let log,alive;
-  if(res===1){
-    b[er][ec]=null;
-    log={text:`${EMOJI[stone.type]}${LABEL[stone.type]} vs ${LABEL[enemy.type]}${EMOJI[enemy.type]} → 승리!`,result:"win"};
-    alive=true;
-  }else if(res===-1){
-    b[pr][pc]=null;
-    log={text:`${EMOJI[stone.type]}${LABEL[stone.type]} vs ${LABEL[enemy.type]}${EMOJI[enemy.type]} → 패배`,result:"lose"};
-    alive=false;
-  }else{
-    b[pr][pc]=null;b[er][ec]=null;
-    log={text:`${EMOJI[stone.type]}${LABEL[stone.type]} vs ${LABEL[enemy.type]}${EMOJI[enemy.type]} → 무승부`,result:"draw"};
-    alive=false;
-  }
+  const b=copyBoard(brd);
+  const s=b[pr][pc],e=b[er][ec];
+  if(!s||!e)return{board:b,log:null,alive:false};
+  b[pr][pc]={...s,revealed:true};b[er][ec]={...e,revealed:true};
+  const res=rps(s.type,e.type);let log,alive;
+  if(res===1){b[er][ec]=null;log={text:`${EMOJI[s.type]}${LABEL[s.type]} vs ${LABEL[e.type]}${EMOJI[e.type]} → 승리!`,result:"win"};alive=true;}
+  else if(res===-1){b[pr][pc]=null;log={text:`${EMOJI[s.type]}${LABEL[s.type]} vs ${LABEL[e.type]}${EMOJI[e.type]} → 패배`,result:"lose"};alive=false;}
+  else{b[pr][pc]=null;b[er][ec]=null;log={text:`${EMOJI[s.type]}${LABEL[s.type]} vs ${LABEL[e.type]}${EMOJI[e.type]} → 무승부`,result:"draw"};alive=false;}
   return{board:b,log,alive};
 }
 
-function resolveAllDirect(brd,row,col,player){
-  let b=brd.map(r=>r.map(c=>c?{...c}:null));
-  const logs=[];
-  const stone=b[row][col];
-  if(!stone)return{board:b,logs,survived:false};
-  const enemies=[];
-  for(const[dr,dc]of DIRS){
-    const nr=row+dr,nc=col+dc;
-    if(nr<0||nr>=BOARD||nc<0||nc>=BOARD)continue;
-    if(b[nr][nc]&&b[nr][nc].player!==player)enemies.push([nr,nc]);
+// 앞면 1:1 전투 (바위 이동공격, 가위 원거리)
+function faceUpCombat(brd,ar,ac,dr2,dc2){
+  const b=copyBoard(brd);
+  const att=b[ar][ac],def=b[dr2][dc2];
+  if(!att||!def)return{board:b,log:null};
+  const res=rps(att.type,def.type);let log;
+  if(res===1){b[dr2][dc2]=null;log={text:`${EMOJI[att.type]}${LABEL[att.type]} ⚔ ${LABEL[def.type]}${EMOJI[def.type]} → 격파!`,result:"win",isUnit:true};}
+  else if(res===-1){b[ar][ac]=null;log={text:`${EMOJI[att.type]}${LABEL[att.type]} ⚔ ${LABEL[def.type]}${EMOJI[def.type]} → 격파당함`,result:"lose",isUnit:true};}
+  else{b[ar][ac]=null;b[dr2][dc2]=null;log={text:`${EMOJI[att.type]}${LABEL[att.type]} ⚔ ${LABEL[def.type]}${EMOJI[def.type]} → 무승부`,result:"draw",isUnit:true};}
+  return{board:b,log};
+}
+
+// 가위 자동 공격 체크 (scissorsPlayer 소유의 가위가 발동)
+function checkScissors(brd,scissorsPlayer){
+  let b=copyBoard(brd);const logs=[];
+  for(let r=0;r<BOARD;r++)for(let c=0;c<BOARD;c++){
+    const u=b[r][c];
+    if(!u||u.player!==scissorsPlayer||!u.revealed||u.type!=="scissors")continue;
+    for(const[dr,dc]of SC_RANGE){
+      const nr=r+dr,nc=c+dc;
+      if(nr<0||nr>=BOARD||nc<0||nc>=BOARD)continue;
+      const t=b[nr][nc];
+      if(!t||t.player===scissorsPlayer||!t.revealed)continue;
+      const{board:nb,log}=faceUpCombat(b,r,c,nr,nc);
+      b=nb;if(log)logs.push({...log,isAI:scissorsPlayer===1});
+      if(!b[r][c])break;
+    }
   }
-  enemies.sort(([ar,ac],[br2,bc])=>{
-    const ra=b[ar][ac]?rps(stone.type,b[ar][ac].type):0;
-    const rb=b[br2][bc]?rps(stone.type,b[br2][bc].type):0;
-    return rb-ra;
-  });
+  return{board:b,logs};
+}
+
+// AI 자동 뒷면 전투
+function resolveAllDirect(brd,row,col,player){
+  let b=copyBoard(brd);const logs=[];
+  const stone=b[row][col];if(!stone)return{board:b,logs,survived:false};
+  const enemies=[];
+  for(const[dr,dc]of DIRS){const nr=row+dr,nc=col+dc;if(nr<0||nr>=BOARD||nc<0||nc>=BOARD)continue;const cell=b[nr][nc];if(cell&&cell.player!==player&&!cell.revealed)enemies.push([nr,nc]);}
+  enemies.sort(([ar,ac],[br2,bc])=>{const ra=b[ar][ac]?rps(stone.type,b[ar][ac].type):0,rb=b[br2][bc]?rps(stone.type,b[br2][bc].type):0;return rb-ra;});
   let alive=true,hadCombat=false;
   for(const[er,ec]of enemies){
-    if(!alive)break;
-    const cur=b[row][col],opp=b[er][ec];
-    if(!cur||!opp)break;
-    hadCombat=true;
-    b[row][col]={...cur,revealed:true};
-    b[er][ec]={...opp,revealed:true};
+    if(!alive)break;const cur=b[row][col],opp=b[er][ec];if(!cur||!opp)break;
+    hadCombat=true;b[row][col]={...cur,revealed:true};b[er][ec]={...opp,revealed:true};
     const res=rps(cur.type,opp.type);
-    if(res===1){
-      b[er][ec]=null;
-      logs.push({text:`${EMOJI[cur.type]}${LABEL[cur.type]} vs ${LABEL[opp.type]}${EMOJI[opp.type]} → 승리!`,result:"win"});
-    }else if(res===-1){
-      b[row][col]=null;
-      logs.push({text:`${EMOJI[cur.type]}${LABEL[cur.type]} vs ${LABEL[opp.type]}${EMOJI[opp.type]} → 패배`,result:"lose"});
-      alive=false;
-    }else{
-      b[row][col]=null;b[er][ec]=null;
-      logs.push({text:`${EMOJI[cur.type]}${LABEL[cur.type]} vs ${LABEL[opp.type]}${EMOJI[opp.type]} → 무승부`,result:"draw"});
-      alive=false;
-    }
+    if(res===1){b[er][ec]=null;logs.push({text:`${EMOJI[cur.type]}${LABEL[cur.type]} vs ${LABEL[opp.type]}${EMOJI[opp.type]} → 승리!`,result:"win",isAI:player===1});}
+    else if(res===-1){b[row][col]=null;logs.push({text:`${EMOJI[cur.type]}${LABEL[cur.type]} vs ${LABEL[opp.type]}${EMOJI[opp.type]} → 패배`,result:"lose",isAI:player===1});alive=false;}
+    else{b[row][col]=null;b[er][ec]=null;logs.push({text:`${EMOJI[cur.type]}${LABEL[cur.type]} vs ${LABEL[opp.type]}${EMOJI[opp.type]} → 무승부`,result:"draw",isAI:player===1});alive=false;}
   }
   return{board:b,logs,survived:hadCombat&&alive&&!!b[row][col]};
 }
 
-function getBlockedSet(cells){
-  const s=new Set();
-  for(const[r,c]of cells){
-    for(const[dr,dc]of DIRS){
-      const nr=r+dr,nc=c+dc;
-      if(nr>=0&&nr<BOARD&&nc>=0&&nc<BOARD)s.add(`${nr},${nc}`);
-    }
+// 보 밀기 결과
+function getPushResult(brd,fromR,fromC,stoneR,stoneC){
+  const b=copyBoard(brd);
+  const dr=stoneR-fromR,dc=stoneC-fromC;
+  const pushed=b[stoneR][stoneC];
+  b[stoneR][stoneC]=null;
+  let landR=stoneR,landC=stoneC,colR=-1,colC=-1;
+  let curR=stoneR,curC=stoneC;
+  while(true){
+    const nr=curR+dr,nc=curC+dc;
+    if(nr<0||nr>=BOARD||nc<0||nc>=BOARD){landR=curR;landC=curC;break;}
+    const cell=b[nr][nc];
+    if(!cell){curR=nr;curC=nc;landR=curR;landC=curC;}
+    else if(!cell.revealed){landR=curR;landC=curC;colR=nr;colC=nc;break;}
+    else{landR=curR;landC=curC;break;}
   }
-  return s;
+  b[landR][landC]=pushed;
+  const logs=[];
+  if(colR>=0){
+    const col2=b[colR][colC];
+    b[landR][landC]={...pushed,revealed:true};b[colR][colC]={...col2,revealed:true};
+    const res=rps(pushed.type,col2.type);
+    if(res===1){b[colR][colC]=null;logs.push({text:`📄보 밀기: ${EMOJI[pushed.type]} vs ${EMOJI[col2.type]} → 충돌 승리!`,result:"win"});}
+    else if(res===-1){b[landR][landC]=null;logs.push({text:`📄보 밀기: ${EMOJI[pushed.type]} vs ${EMOJI[col2.type]} → 충돌 패배`,result:"lose"});}
+    else{b[landR][landC]=null;b[colR][colC]=null;logs.push({text:`📄보 밀기: ${EMOJI[pushed.type]} vs ${EMOJI[col2.type]} → 무승부`,result:"draw"});}
+  }else{logs.push({text:"📄보 밀기: 충돌 없이 슬라이드",result:"neutral"});}
+  return{board:b,logs};
 }
 
+// ── 설정 화면 ──────────────────────────────────────
 function SetupScreen({onStart}){
   const[dist,setDist]=useState({rock:8,scissors:8,paper:8});
   const used=sumStones(dist),rem=TOTAL-used;
-  const adj=(type,d)=>{
-    if(dist[type]+d<0)return;
-    if(d>0&&rem<=0)return;
-    setDist(p=>({...p,[type]:p[type]+d}));
-  };
+  const adj=(type,d)=>{if(dist[type]+d<0)return;if(d>0&&rem<=0)return;setDist(p=>({...p,[type]:p[type]+d}));};
   return(
-    <div style={{fontFamily:"'Noto Sans KR',system-ui,sans-serif",background:"#0d0d1a",minHeight:"100vh",color:"#e0e0f0",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",padding:"20px"}}>
-      <div style={{fontSize:"28px",marginBottom:"6px"}}>⚔️</div>
-      <h1 style={{fontSize:"20px",fontWeight:800,color:"#b8a4ff",margin:"0 0 4px",letterSpacing:"0.05em"}}>한중일 전략대전</h1>
-      <p style={{fontSize:"12px",color:"#555",margin:"0 0 28px",textAlign:"center",lineHeight:1.6}}>24개 돌을 원하는 대로 배분하세요<br/>상대는 내 분포를 알 수 없어요</p>
-
-      <div style={{background:"#13132a",borderRadius:"18px",padding:"22px 26px",width:"100%",maxWidth:"320px",marginBottom:"18px",boxShadow:"0 4px 24px #0005"}}>
-        <div style={{fontSize:"13px",color:"#888",marginBottom:"18px",textAlign:"center"}}>
-          배분 가능&nbsp;
-          <span style={{color:rem===0?"#5dff5d":"#ffe066",fontWeight:800,fontSize:"16px"}}>{rem}</span>
-          <span style={{color:"#555"}}>개 남음</span>
-        </div>
+    <div style={{fontFamily:"system-ui,sans-serif",background:"#0d0d1a",minHeight:"100vh",color:"#e0e0f0",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",padding:"20px"}}>
+      <div style={{fontSize:"26px",marginBottom:"6px"}}>⚔️</div>
+      <h1 style={{fontSize:"19px",fontWeight:800,color:"#b8a4ff",margin:"0 0 4px"}}>한중일 전략대전</h1>
+      <p style={{fontSize:"11px",color:"#555",margin:"0 0 24px",textAlign:"center"}}>24개 돌을 원하는 대로 배분하세요<br/>상대는 내 분포를 알 수 없어요</p>
+      <div style={{background:"#13132a",borderRadius:"16px",padding:"20px 24px",width:"100%",maxWidth:"300px",marginBottom:"16px"}}>
+        <div style={{fontSize:"12px",color:"#888",marginBottom:"14px",textAlign:"center"}}>배분 가능 <span style={{color:rem===0?"#5dff5d":"#ffe066",fontWeight:800,fontSize:"15px"}}>{rem}</span>개 남음</div>
         {TYPES.map(type=>(
-          <div key={type} style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:"16px"}}>
-            <div style={{fontSize:"15px",fontWeight:700,width:"80px"}}>{EMOJI[type]} {LABEL[type]}</div>
-            <div style={{display:"flex",alignItems:"center",gap:"14px"}}>
-              <button onClick={()=>adj(type,-1)}
-                style={{width:"34px",height:"34px",borderRadius:"8px",border:"none",background:"#2a1a4a",color:"#b8a4ff",fontSize:"20px",cursor:"pointer",fontWeight:700,lineHeight:1}}>−</button>
-              <span style={{fontSize:"22px",fontWeight:900,minWidth:"30px",textAlign:"center",color:"#e0e0f0"}}>{dist[type]}</span>
-              <button onClick={()=>adj(type,1)} disabled={rem<=0}
-                style={{width:"34px",height:"34px",borderRadius:"8px",border:"none",background:rem<=0?"#1a1a2e":"#2a1a4a",color:rem<=0?"#333":"#b8a4ff",fontSize:"20px",cursor:rem<=0?"not-allowed":"pointer",fontWeight:700,lineHeight:1}}>+</button>
+          <div key={type} style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:"14px"}}>
+            <div style={{fontSize:"14px",fontWeight:700,width:"76px"}}>{EMOJI[type]} {LABEL[type]}</div>
+            <div style={{display:"flex",alignItems:"center",gap:"12px"}}>
+              <button onClick={()=>adj(type,-1)} style={{width:"32px",height:"32px",borderRadius:"7px",border:"none",background:"#2a1a4a",color:"#b8a4ff",fontSize:"20px",cursor:"pointer",fontWeight:700}}>−</button>
+              <span style={{fontSize:"20px",fontWeight:900,minWidth:"28px",textAlign:"center"}}>{dist[type]}</span>
+              <button onClick={()=>adj(type,1)} disabled={rem<=0} style={{width:"32px",height:"32px",borderRadius:"7px",border:"none",background:rem<=0?"#1a1a2e":"#2a1a4a",color:rem<=0?"#333":"#b8a4ff",fontSize:"20px",cursor:rem<=0?"not-allowed":"pointer",fontWeight:700}}>+</button>
             </div>
           </div>
         ))}
-        <div style={{height:"10px",borderRadius:"5px",overflow:"hidden",display:"flex",marginTop:"8px",gap:"2px"}}>
-          <div style={{width:`${(dist.rock/TOTAL)*100}%`,background:"#6aaeff",borderRadius:"5px",transition:"width 0.2s"}}/>
-          <div style={{width:`${(dist.scissors/TOTAL)*100}%`,background:"#ff7070",borderRadius:"5px",transition:"width 0.2s"}}/>
-          <div style={{width:`${(dist.paper/TOTAL)*100}%`,background:"#ffe066",borderRadius:"5px",transition:"width 0.2s"}}/>
+        <div style={{height:"8px",borderRadius:"4px",overflow:"hidden",display:"flex",marginTop:"4px",gap:"2px"}}>
+          <div style={{width:`${(dist.rock/TOTAL)*100}%`,background:"#6aaeff",borderRadius:"4px",transition:"width 0.2s"}}/>
+          <div style={{width:`${(dist.scissors/TOTAL)*100}%`,background:"#ff7070",borderRadius:"4px",transition:"width 0.2s"}}/>
+          <div style={{width:`${(dist.paper/TOTAL)*100}%`,background:"#ffe066",borderRadius:"4px",transition:"width 0.2s"}}/>
         </div>
-        <div style={{display:"flex",justifyContent:"space-between",fontSize:"10px",color:"#444",marginTop:"5px",padding:"0 2px"}}>
+        <div style={{display:"flex",justifyContent:"space-between",fontSize:"9px",color:"#444",marginTop:"4px"}}>
           <span>🪨 {dist.rock}</span><span>✂️ {dist.scissors}</span><span>📄 {dist.paper}</span>
         </div>
       </div>
-
-      <p style={{fontSize:"11px",color:"#444",marginBottom:"20px",textAlign:"center"}}>AI도 비공개로 분포를 설정합니다</p>
-
+      <div style={{background:"#13132a",borderRadius:"10px",padding:"10px 14px",width:"100%",maxWidth:"300px",fontSize:"10px",color:"#555",lineHeight:1.9,marginBottom:"16px"}}>
+        <div style={{color:"#777",fontWeight:700,marginBottom:"2px"}}>v7 신규 규칙</div>
+        <div>🪨 바위(앞면): 1칸 이동 후 인접 공격</div>
+        <div>✂️ 가위(앞면): 2칸 앞 적 자동 공격</div>
+        <div>📄 보(앞면): 인접 뒷면 돌 밀기</div>
+        <div>앞면↔뒷면: 전투 없음</div>
+      </div>
       <button onClick={()=>rem===0&&onStart(dist)} disabled={rem!==0}
-        style={{background:rem===0?"#b8a4ff":"#1e1e38",color:rem===0?"#0d0d1a":"#444",fontWeight:800,border:"none",borderRadius:"12px",padding:"14px 36px",cursor:rem===0?"pointer":"not-allowed",fontSize:"16px",boxShadow:rem===0?"0 2px 16px #b8a4ff44":"none",transition:"all 0.2s"}}>
+        style={{background:rem===0?"#b8a4ff":"#1e1e38",color:rem===0?"#0d0d1a":"#444",fontWeight:800,border:"none",borderRadius:"12px",padding:"13px 34px",cursor:rem===0?"pointer":"not-allowed",fontSize:"15px"}}>
         {rem===0?"게임 시작 →":`${rem}개 더 배분하세요`}
       </button>
-
-      <div style={{marginTop:"28px",background:"#13132a",borderRadius:"12px",padding:"12px 16px",width:"100%",maxWidth:"320px",fontSize:"11px",color:"#555",lineHeight:1.8}}>
-        <div style={{color:"#888",fontWeight:700,marginBottom:"4px"}}>📖 규칙 요약</div>
-        <div>🪨 바위 &gt; ✂️ 가위 &gt; 📄 보 &gt; 🪨 바위</div>
-        <div>● 뒷면 돌을 배치, 4방향 인접 시 전투</div>
-        <div>🛡 승리 후 주변 4칸 1턴 동안 배치 불가</div>
-        <div>🏁 돌 소진 후 보드 위 돌 많은 쪽 승리</div>
-      </div>
     </div>
   );
 }
 
+// ── 메인 게임 ──────────────────────────────────────
 function App(){
   const[phase,setPhase]=useState("setup");
   const[board,setBoard]=useState(initBoard());
@@ -184,6 +184,7 @@ function App(){
   const[aStones,setAStones]=useState(null);
   const[selected,setSelected]=useState("rock");
   const[turn,setTurn]=useState("player");
+  const[turnPhase,setTurnPhase]=useState("placement"); // placement|action
   const[turnsLeft,setTurnsLeft]=useState(48);
   const[totalTurns,setTotalTurns]=useState(48);
   const[logs,setLogs]=useState([]);
@@ -193,294 +194,427 @@ function App(){
   const[aiThinking,setAiThinking]=useState(false);
   const[combatSelect,setCombatSelect]=useState(null);
   const[cooldown,setCooldown]=useState(null);
+  const[selUnit,setSelUnit]=useState(null); // 선택된 앞면 유닛 {row,col}
+  const[actionTargets,setActionTargets]=useState([]); // 행동 가능한 타겟 위치들
 
-  const addLogs=nl=>setLogs(p=>[...nl,...p].slice(0,12));
+  const addLogs=nl=>setLogs(p=>[...nl,...p].slice(0,14));
 
   const startGame=(playerDist)=>{
     const aiDist=randomDist();
     const tt=sumStones(playerDist)+sumStones(aiDist);
-    setPStones(playerDist);setAStones(aiDist);
-    setTotalTurns(tt);setTurnsLeft(tt);
-    setPhase("playing");
+    setPStones(playerDist);setAStones(aiDist);setTotalTurns(tt);setTurnsLeft(tt);setPhase("playing");
   };
 
   const checkEnd=useCallback((b,tl,ps,as)=>{
     if(tl<=0||(sumStones(ps)===0&&sumStones(as)===0)){
       const pc=countOnBoard(b,0),ac=countOnBoard(b,1);
-      setGameOver(true);
-      setWinner(pc>ac?"player":ac>pc?"ai":"draw");
-      return true;
-    }
-    return false;
+      setGameOver(true);setWinner(pc>ac?"player":ac>pc?"ai":"draw");return true;
+    }return false;
   },[]);
 
-  const handleClick=(row,col)=>{
-    if(combatSelect){handleCombatPick(row,col);return;}
-    if(turn!=="player"||gameOver||board[row][col]||!pStones)return;
-    if(pStones[selected]<=0)return;
-    if(cooldown?.for==="player"){
-      const blocked=getBlockedSet(cooldown.cells);
-      if(blocked.has(`${row},${col}`))return;
+  // 플레이어 앞면 유닛의 행동 타겟 계산
+  const calcTargets=(b,r,c)=>{
+    const unit=b[r][c];if(!unit||!unit.revealed)return[];
+    if(unit.type==="rock"){
+      // 바위: 인접 빈칸(이동) + 인접 적 앞면(공격)
+      return DIRS.map(([dr,dc])=>{const nr=r+dr,nc=c+dc;if(nr<0||nr>=BOARD||nc<0||nc>=BOARD)return null;const cell=b[nr][nc];if(!cell)return{r:nr,c:nc,kind:"move"};if(cell.player!==0&&cell.revealed)return{r:nr,c:nc,kind:"attack"};return null;}).filter(Boolean);
     }
-    const nb=board.map(r=>r.map(c=>c?{...c}:null));
+    if(unit.type==="paper"){
+      // 보: 인접 뒷면 돌(밀기)
+      return DIRS.map(([dr,dc])=>{const nr=r+dr,nc=c+dc;if(nr<0||nr>=BOARD||nc<0||nc>=BOARD)return null;const cell=b[nr][nc];if(cell&&!cell.revealed)return{r:nr,c:nc,kind:"push"};return null;}).filter(Boolean);
+    }
+    return[]; // 가위는 수동 행동 없음
+  };
+
+  // 앞면 유닛 선택
+  const handleUnitSelect=(r,c)=>{
+    const unit=board[r][c];
+    if(!unit||unit.player!==0||!unit.revealed)return;
+    if(unit.type==="scissors"){
+      // 가위는 행동 없음, 자동 스킵
+      addLogs([{text:"✂️ 가위는 자동 공격 전용 — 행동 건너뜀",result:"neutral"}]);
+      endActionPhase(board);return;
+    }
+    const targets=calcTargets(board,r,c);
+    if(targets.length===0){
+      addLogs([{text:`${EMOJI[unit.type]} 행동 가능한 타겟 없음 — 건너뜀`,result:"neutral"}]);
+      endActionPhase(board);return;
+    }
+    setSelUnit({row:r,col:c});setActionTargets(targets);
+  };
+
+  // 행동 타겟 클릭
+  const handleTargetClick=(tr,tc)=>{
+    if(!selUnit)return;
+    const{row:ur,col:uc}=selUnit;
+    const unit=board[ur][uc];if(!unit)return;
+    const target=actionTargets.find(t=>t.r===tr&&t.c===tc);if(!target)return;
+
+    let b=copyBoard(board);
+
+    if(target.kind==="move"){
+      // 바위 이동
+      b[tr][tc]=b[ur][uc];b[ur][uc]=null;
+      addLogs([{text:`🪨 바위 이동 (${ur},${uc})→(${tr},${tc})`,result:"neutral"}]);
+      // 이동 후 상대 가위 자동공격 체크
+      const{board:b2,logs:l2}=checkScissors(b,1);
+      b=b2;if(l2.length)addLogs(l2);
+    }else if(target.kind==="attack"){
+      // 바위 공격
+      const{board:b2,log}=faceUpCombat(b,ur,uc,tr,tc);
+      b=b2;if(log)addLogs([log]);
+    }else if(target.kind==="push"){
+      // 보 밀기
+      const{board:b2,logs:pl}=getPushResult(b,ur,uc,tr,tc);
+      b=b2;if(pl.length)addLogs(pl);
+      // 밀기 후 새 앞면 유닛 체크 (상대 가위)
+      const{board:b3,logs:l3}=checkScissors(b,1);
+      b=b3;if(l3.length)addLogs(l3);
+    }
+
+    setSelUnit(null);setActionTargets([]);
+    endActionPhase(b);
+  };
+
+  const endActionPhase=(b)=>{
+    setBoard(b);setTurn("ai");setTurnPhase("placement");
+  };
+
+  const skipAction=()=>{
+    setSelUnit(null);setActionTargets([]);
+    endActionPhase(board);
+  };
+
+  // ── 배치 단계 클릭 ──────────────────────────────
+  const handlePlacementClick=(row,col)=>{
+    if(combatSelect){handleCombatPick(row,col);return;}
+    if(turn!=="player"||turnPhase!=="placement"||gameOver||board[row][col]||!pStones)return;
+    if(pStones[selected]<=0)return;
+    if(cooldown?.for==="player"){const bl=getBlockedSet(cooldown.cells);if(bl.has(`${row},${col}`))return;}
+
+    const nb=copyBoard(board);
     nb[row][col]={player:0,type:selected,revealed:false};
     const nps={...pStones,[selected]:pStones[selected]-1};
     setPStones(nps);setLastPlaced([row,col]);setCooldown(null);
-    const enemies=[];
+
+    // 인접 뒷면 적만 찾기
+    const fdEnemies=[];
     for(const[dr,dc]of DIRS){
-      const nr=row+dr,nc=col+dc;
-      if(nr<0||nr>=BOARD||nc<0||nc>=BOARD)continue;
-      if(nb[nr][nc]&&nb[nr][nc].player!==0)enemies.push([nr,nc]);
+      const nr=row+dr,nc=col+dc;if(nr<0||nr>=BOARD||nc<0||nc>=BOARD)continue;
+      const cell=nb[nr][nc];
+      if(cell&&cell.player!==0&&!cell.revealed)fdEnemies.push([nr,nc]);
     }
-    if(enemies.length===0){
+    const nt=turnsLeft-1;setTurnsLeft(nt);
+
+    if(fdEnemies.length===0){
       setBoard(nb);
-      const nt=turnsLeft-1;setTurnsLeft(nt);
-      if(!checkEnd(nb,nt,nps,aStones))setTurn("ai");
-    }else if(enemies.length===1){
-      const{board:resolved,log,alive}=singleCombat(nb,row,col,enemies[0][0],enemies[0][1]);
+      if(!checkEnd(nb,nt,nps,aStones))setTurnPhase("action");
+    }else if(fdEnemies.length===1){
+      const{board:resolved,log,alive}=singleCombat(nb,row,col,fdEnemies[0][0],fdEnemies[0][1]);
       if(log)addLogs([log]);
-      if(alive)setCooldown({cells:[[row,col]],for:"ai"});
-      const nt=turnsLeft-1;setTurnsLeft(nt);
-      setBoard(resolved);
-      if(!checkEnd(resolved,nt,nps,aStones))setTurn("ai");
+      let b2=resolved;
+      // 새 앞면 유닛에 대해 상대 가위 자동 공격
+      const{board:b3,logs:l3}=checkScissors(b2,1);
+      b2=b3;if(l3.length)addLogs(l3);
+      if(alive&&b2[row][col])setCooldown({cells:[[row,col]],for:"ai"});
+      setBoard(b2);
+      if(!checkEnd(b2,nt,nps,aStones))setTurnPhase("action");
     }else{
+      // 복수 전투 선택
       setBoard(nb);
-      setCombatSelect({row,col,remaining:enemies,nps});
+      setCombatSelect({row,col,remaining:fdEnemies,nps});
     }
   };
 
+  // 복수 전투 선택
   const handleCombatPick=(er,ec)=>{
     if(!combatSelect)return;
     const{row,col,remaining,nps}=combatSelect;
     if(!remaining.some(([r,c])=>r===er&&c===ec))return;
     const{board:nb,log,alive}=singleCombat(board,row,col,er,ec);
     if(log)addLogs([log]);
-    const newRemaining=remaining.filter(([r,c])=>!(r===er&&c===ec));
-    if(!alive||newRemaining.length===0){
-      const survived=alive&&!!nb[row][col];
-      if(survived)setCooldown({cells:[[row,col]],for:"ai"});
-      const nt=turnsLeft-1;setTurnsLeft(nt);
-      setBoard(nb);setCombatSelect(null);
-      if(!checkEnd(nb,nt,nps,aStones))setTurn("ai");
-    }else{
-      setBoard(nb);
-      setCombatSelect({row,col,remaining:newRemaining,nps});
+    const newRem=remaining.filter(([r,c])=>!(r===er&&c===ec));
+    if(!alive||newRem.length===0){
+      let b2=nb;
+      const{board:b3,logs:l3}=checkScissors(b2,1);
+      b2=b3;if(l3.length)addLogs(l3);
+      if(alive&&b2[row][col])setCooldown({cells:[[row,col]],for:"ai"});
+      setBoard(b2);setCombatSelect(null);
+      if(!checkEnd(b2,turnsLeft,nps,aStones))setTurnPhase("action");
+    }else{setBoard(nb);setCombatSelect({row,col,remaining:newRem,nps});}
+  };
+
+  // 메인 클릭 핸들러
+  const handleClick=(r,c)=>{
+    if(gameOver||turn!=="player")return;
+    if(turnPhase==="placement"){handlePlacementClick(r,c);}
+    else if(turnPhase==="action"){
+      if(selUnit){handleTargetClick(r,c);}
+      else{handleUnitSelect(r,c);}
     }
   };
 
+  // ── AI 턴 ──────────────────────────────────────
   useEffect(()=>{
     if(turn!=="ai"||gameOver||!aStones)return;
     setAiThinking(true);
     const timer=setTimeout(()=>{
+      // AI 배치 단계
       const blockedSet=cooldown?.for==="ai"?getBlockedSet(cooldown.cells):new Set();
       setCooldown(null);
       const empty=[];
-      for(let r=0;r<BOARD;r++)
-        for(let c=0;c<BOARD;c++)
-          if(!board[r][c]&&!blockedSet.has(`${r},${c}`))empty.push([r,c]);
+      for(let r=0;r<BOARD;r++)for(let c=0;c<BOARD;c++)if(!board[r][c]&&!blockedSet.has(`${r},${c}`))empty.push([r,c]);
       const avail=TYPES.filter(t=>aStones[t]>0);
-      if(!empty.length||!avail.length){setAiThinking(false);setTurn("player");return;}
+      if(!empty.length||!avail.length){setAiThinking(false);setTurn("player");setTurnPhase("placement");return;}
+
+      // AI 배치 선택
       let move=null;
       outer:for(const[r,c]of empty){
-        for(const[dr,dc]of DIRS){
-          const nr=r+dr,nc=c+dc;
-          if(nr<0||nr>=BOARD||nc<0||nc>=BOARD)continue;
-          const nb=board[nr][nc];
-          if(!nb||nb.player!==0||!nb.revealed)continue;
-          for(const type of avail){
-            if(rps(type,nb.type)===1){move={r,c,type};break outer;}
+        for(const[dr,dc]of DIRS){const nr=r+dr,nc=c+dc;if(nr<0||nr>=BOARD||nc<0||nc>=BOARD)continue;const nb=board[nr][nc];if(!nb||nb.player!==0||!nb.revealed)continue;for(const type of avail){if(rps(type,nb.type)===1){move={r,c,type};break outer;}}}
+      }
+      if(!move){
+        const safe=empty.filter(([r,c])=>{for(const[dr,dc]of DIRS){const nr=r+dr,nc=c+dc;if(nr<0||nr>=BOARD||nc<0||nc>=BOARD)continue;const nb=board[nr][nc];if(nb?.player===0&&nb.revealed&&avail[0]&&rps(avail[0],nb.type)===-1)return false;}return true;});
+        const pool=safe.length?safe:empty;const[r,c]=pool[Math.floor(Math.random()*pool.length)];const type=avail[Math.floor(Math.random()*avail.length)];move={r,c,type};
+      }
+
+      const nb=copyBoard(board);
+      nb[move.r][move.c]={player:1,type:move.type,revealed:false};
+      const{board:afterPlace,logs:pl,survived}=resolveAllDirect(nb,move.r,move.c,1);
+      addLogs(pl);
+      let b2=afterPlace;
+      // 새 앞면 유닛에 플레이어 가위 반응
+      const{board:b3,logs:l3}=checkScissors(b2,0);
+      b2=b3;if(l3.length)addLogs(l3);
+      if(survived&&b2[move.r][move.c])setCooldown({cells:[[move.r,move.c]],for:"player"});
+      const nas={...aStones,[move.type]:aStones[move.type]-1};
+      setAStones(nas);setLastPlaced([move.r,move.c]);
+      const nt=turnsLeft-1;setTurnsLeft(nt);
+
+      if(checkEnd(b2,nt,pStones,nas)){setBoard(b2);setAiThinking(false);return;}
+
+      // AI 행동 단계
+      const aiUnits=[];
+      for(let r=0;r<BOARD;r++)for(let c=0;c<BOARD;c++){const u=b2[r][c];if(u&&u.player===1&&u.revealed)aiUnits.push({r,c,type:u.type});}
+
+      let b4=copyBoard(b2);
+      if(aiUnits.length>0){
+        // 행동 가능한 유닛 찾기
+        let acted=false;
+        // 바위 우선: 인접 적 앞면 공격
+        for(const{r,c,type}of aiUnits){
+          if(type!=="rock")continue;
+          for(const[dr,dc]of DIRS){const nr=r+dr,nc=c+dc;if(nr<0||nr>=BOARD||nc<0||nc>=BOARD)continue;const t=b4[nr][nc];if(t&&t.player===0&&t.revealed){const{board:nb2,log}=faceUpCombat(b4,r,c,nr,nc);b4=nb2;if(log)addLogs([log]);const{board:b5,logs:l5}=checkScissors(b4,0);b4=b5;if(l5.length)addLogs(l5);acted=true;break;}}
+          if(acted)break;
+        }
+        if(!acted){
+          // 바위 이동: 빈칸으로 이동
+          for(const{r,c,type}of aiUnits){
+            if(type!=="rock")continue;
+            // 플레이어 앞면 유닛 방향으로 이동
+            let bestDir=null,bestDist=Infinity;
+            for(let pr=0;pr<BOARD;pr++)for(let pc=0;pc<BOARD;pc++){const pu=b4[pr][pc];if(!pu||pu.player!==0||!pu.revealed)continue;const d=Math.abs(pr-r)+Math.abs(pc-c);if(d<bestDist){bestDist=d;bestDir=[pr-r>0?1:pr-r<0?-1:0,pc-c>0?1:pc-c<0?-1:0];}}
+            if(bestDir){
+              // 시도: 최적 방향 이동
+              for(const[dr,dc]of DIRS){
+                const nr=r+dr,nc=c+dc;if(nr<0||nr>=BOARD||nc<0||nc>=BOARD)continue;
+                if(!b4[nr][nc]){b4[nr][nc]=b4[r][c];b4[r][c]=null;addLogs([{text:`🪨 AI 바위 이동`,result:"neutral"}]);const{board:b5,logs:l5}=checkScissors(b4,0);b4=b5;if(l5.length)addLogs(l5);acted=true;break;}
+              }
+            }
+            if(acted)break;
+          }
+        }
+        if(!acted){
+          // 보 밀기: 인접 적 뒷면 돌 밀기
+          for(const{r,c,type}of aiUnits){
+            if(type!=="paper")continue;
+            for(const[dr,dc]of DIRS){const nr=r+dr,nc=c+dc;if(nr<0||nr>=BOARD||nc<0||nc>=BOARD)continue;const t=b4[nr][nc];if(t&&!t.revealed&&t.player===0){const{board:nb2,logs:pl2}=getPushResult(b4,r,c,nr,nc);b4=nb2;addLogs(pl2);const{board:b5,logs:l5}=checkScissors(b4,0);b4=b5;if(l5.length)addLogs(l5);acted=true;break;}}
+            if(acted)break;
           }
         }
       }
-      if(!move){
-        const safe=empty.filter(([r,c])=>{
-          for(const[dr,dc]of DIRS){
-            const nr=r+dr,nc=c+dc;
-            if(nr<0||nr>=BOARD||nc<0||nc>=BOARD)continue;
-            const nb=board[nr][nc];
-            if(nb?.player===0&&nb.revealed&&avail[0]&&rps(avail[0],nb.type)===-1)return false;
-          }
-          return true;
-        });
-        const pool=safe.length?safe:empty;
-        const[r,c]=pool[Math.floor(Math.random()*pool.length)];
-        const type=avail[Math.floor(Math.random()*avail.length)];
-        move={r,c,type};
-      }
-      const nb=board.map(r=>r.map(c=>c?{...c}:null));
-      nb[move.r][move.c]={player:1,type:move.type,revealed:false};
-      const{board:resolved,logs:nl,survived}=resolveAllDirect(nb,move.r,move.c,1);
-      const nas={...aStones,[move.type]:aStones[move.type]-1};
-      const nt=turnsLeft-1;
-      setBoard(resolved);setAStones(nas);addLogs(nl.map(l=>({...l,isAI:true})));
-      setTurnsLeft(nt);setLastPlaced([move.r,move.c]);setAiThinking(false);
-      if(survived)setCooldown({cells:[[move.r,move.c]],for:"player"});
-      if(!checkEnd(resolved,nt,pStones,nas))setTurn("player");
-    },700);
+
+      setBoard(b4);setAiThinking(false);setTurn("player");setTurnPhase("placement");
+    },800);
     return()=>clearTimeout(timer);
   },[turn,board,aStones,pStones,turnsLeft,gameOver,checkEnd,cooldown]);
 
   const reset=()=>{
-    setBoard(initBoard());setPStones(null);setAStones(null);
-    setSelected("rock");setTurn("player");setTurnsLeft(48);setTotalTurns(48);
-    setLogs([]);setGameOver(false);setWinner(null);
-    setLastPlaced(null);setAiThinking(false);setCombatSelect(null);
-    setCooldown(null);setPhase("setup");
+    setBoard(initBoard());setPStones(null);setAStones(null);setSelected("rock");
+    setTurn("player");setTurnPhase("placement");setTurnsLeft(48);setTotalTurns(48);
+    setLogs([]);setGameOver(false);setWinner(null);setLastPlaced(null);
+    setAiThinking(false);setCombatSelect(null);setCooldown(null);
+    setSelUnit(null);setActionTargets([]);setPhase("setup");
   };
 
   if(phase==="setup")return <SetupScreen onStart={startGame}/>;
 
   const pc=countOnBoard(board,0),ac=countOnBoard(board,1);
-  const pTotal=pStones?sumStones(pStones):0;
-  const aTotal=aStones?sumStones(aStones):0;
+  const pTotal=pStones?sumStones(pStones):0,aTotal=aStones?sumStones(aStones):0;
   const progress=totalTurns>0?Math.round(((totalTurns-turnsLeft)/totalTurns)*100):0;
-  const isSelecting=!!combatSelect;
+  const isCombatSel=!!combatSelect;
   const playerBlockedSet=cooldown?.for==="player"?getBlockedSet(cooldown.cells):new Set();
   const cooldownCellSet=new Set((cooldown?.cells||[]).map(([r,c])=>`${r},${c}`));
+  const cellSize=Math.min(40,Math.floor((Math.min(window.innerWidth,400)-28)/BOARD));
 
-  // 셀 사이즈: 화면 너비에 맞게
-  const cellSize=Math.min(42,Math.floor((window.innerWidth-28)/BOARD));
+  // 가위 사정거리 표시 (선택된 유닛이 가위일 때)
+  const scRangeSet=new Set();
+  if(turnPhase==="action"&&!selUnit){
+    for(let r=0;r<BOARD;r++)for(let c=0;c<BOARD;c++){
+      const u=board[r][c];if(!u||u.player!==0||!u.revealed||u.type!=="scissors")continue;
+      for(const[dr,dc]of SC_RANGE){const nr=r+dr,nc=c+dc;if(nr>=0&&nr<BOARD&&nc>=0&&nc<BOARD)scRangeSet.add(`${nr},${nc}`);}
+    }
+  }
+
+  const phaseLabel=turnPhase==="placement"?"📍 뒷면 배치":"⚔ 앞면 유닛 행동";
+  const phaseColor=turnPhase==="placement"?"#5dff5d":"#ffe066";
 
   return(
-    <div style={{fontFamily:"'Noto Sans KR',system-ui,sans-serif",background:"#0d0d1a",minHeight:"100vh",color:"#e0e0f0",padding:"10px",display:"flex",flexDirection:"column",alignItems:"center"}}>
-      <h1 style={{fontSize:"15px",fontWeight:800,color:"#b8a4ff",margin:"0 0 8px",letterSpacing:"0.05em"}}>⚔️ 한중일 전략대전</h1>
+    <div style={{fontFamily:"system-ui,sans-serif",background:"#0d0d1a",minHeight:"100vh",color:"#e0e0f0",padding:"10px",display:"flex",flexDirection:"column",alignItems:"center"}}>
+      <h1 style={{fontSize:"14px",fontWeight:800,color:"#b8a4ff",margin:"0 0 6px"}}>⚔️ 한중일 전략대전 v7</h1>
 
-      {/* 스코어 바 */}
-      <div style={{width:"100%",maxWidth:"360px",background:"#13132a",borderRadius:"14px",padding:"10px 16px",marginBottom:"8px",display:"flex",justifyContent:"space-between",alignItems:"center",boxShadow:"0 2px 12px #0004"}}>
+      {/* 스코어 */}
+      <div style={{width:"100%",maxWidth:"360px",background:"#13132a",borderRadius:"12px",padding:"8px 14px",marginBottom:"7px",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
         <div style={{textAlign:"center"}}>
-          <div style={{fontSize:"11px",color:"#6aaeff",fontWeight:700}}>🔵 나</div>
-          <div style={{fontSize:"30px",fontWeight:900,color:"#6aaeff",lineHeight:1.1}}>{pc}</div>
+          <div style={{fontSize:"10px",color:"#6aaeff",fontWeight:700}}>🔵 나</div>
+          <div style={{fontSize:"26px",fontWeight:900,color:"#6aaeff",lineHeight:1.1}}>{pc}</div>
           {pStones&&<div style={{fontSize:"9px",color:"#335577"}}>{EMOJI.rock}{pStones.rock} {EMOJI.scissors}{pStones.scissors} {EMOJI.paper}{pStones.paper}</div>}
           <div style={{fontSize:"9px",color:"#334"}}>잔여 {pTotal}</div>
         </div>
         <div style={{textAlign:"center"}}>
-          <div style={{fontSize:"20px",fontWeight:800,color:turnsLeft<=10?"#ff6b6b":"#ccc",lineHeight:1}}>{turnsLeft}</div>
-          <div style={{fontSize:"8px",color:"#444",marginBottom:"3px"}}>남은 턴</div>
-          <div style={{width:"60px",height:"4px",background:"#1e1e30",borderRadius:"2px",margin:"0 auto 4px"}}>
+          <div style={{fontSize:"17px",fontWeight:800,color:turnsLeft<=10?"#ff6b6b":"#ccc"}}>{turnsLeft}</div>
+          <div style={{fontSize:"7px",color:"#444",marginBottom:"2px"}}>남은 턴</div>
+          <div style={{width:"54px",height:"3px",background:"#1e1e30",borderRadius:"2px",margin:"0 auto 3px"}}>
             <div style={{width:`${progress}%`,height:"100%",background:"#b8a4ff",borderRadius:"2px",transition:"width 0.3s"}}/>
           </div>
-          <div style={{fontSize:"10px",fontWeight:700,padding:"3px 8px",borderRadius:"20px",
-            background:isSelecting?"#3a2a00":turn==="player"?"#162816":"#281616",
-            color:isSelecting?"#ffe066":turn==="player"?"#5dff5d":"#ff7070"}}>
-            {isSelecting?"대상 선택":aiThinking?"AI…":turn==="player"?"내 차례":"AI 차례"}
+          <div style={{fontSize:"9px",fontWeight:700,padding:"2px 6px",borderRadius:"20px",background:aiThinking?"#281616":turn==="player"?"#1a2010":"#281616",color:aiThinking?"#ff7070":turn==="player"?phaseColor:"#ff7070"}}>
+            {aiThinking?"AI…":turn==="player"?phaseLabel:"AI 차례"}
           </div>
         </div>
         <div style={{textAlign:"center"}}>
-          <div style={{fontSize:"11px",color:"#ff7070",fontWeight:700}}>🔴 AI</div>
-          <div style={{fontSize:"30px",fontWeight:900,color:"#ff7070",lineHeight:1.1}}>{ac}</div>
+          <div style={{fontSize:"10px",color:"#ff7070",fontWeight:700}}>🔴 AI</div>
+          <div style={{fontSize:"26px",fontWeight:900,color:"#ff7070",lineHeight:1.1}}>{ac}</div>
           <div style={{fontSize:"9px",color:"#442222"}}>??? ??? ???</div>
           <div style={{fontSize:"9px",color:"#334"}}>잔여 {aTotal}</div>
         </div>
       </div>
 
-      {/* 전투 선택 배너 */}
-      {isSelecting&&(
-        <div style={{width:"100%",maxWidth:"360px",background:"#2a2000",border:"1px solid #ffe066",borderRadius:"10px",padding:"8px 14px",marginBottom:"8px",textAlign:"center"}}>
-          <div style={{fontSize:"12px",color:"#ffe066",fontWeight:700}}>⚔ 먼저 싸울 적을 선택하세요</div>
-          <div style={{fontSize:"10px",color:"#aa9933",marginTop:"2px"}}>반짝이는 적 돌 탭 · 선택 순간 공개 · 남은 전투 {combatSelect.remaining.length}개</div>
+      {/* 배너 */}
+      {isCombatSel&&(
+        <div style={{width:"100%",maxWidth:"360px",background:"#2a2000",border:"1px solid #ffe066",borderRadius:"9px",padding:"6px 12px",marginBottom:"7px",textAlign:"center"}}>
+          <div style={{fontSize:"11px",color:"#ffe066",fontWeight:700}}>⚔ 먼저 싸울 적을 선택하세요</div>
+          <div style={{fontSize:"9px",color:"#aa9933",marginTop:"1px"}}>반짝 적 탭 · 선택 순간 공개 · 남은 전투 {combatSelect.remaining.length}개</div>
         </div>
       )}
-
-      {/* 쿨다운 배너 */}
-      {!isSelecting&&cooldown?.for==="player"&&turn==="player"&&(
-        <div style={{width:"100%",maxWidth:"360px",background:"#2a0a0a",border:"1px solid #ff4444",borderRadius:"10px",padding:"7px 14px",marginBottom:"8px",textAlign:"center"}}>
-          <div style={{fontSize:"11px",color:"#ff6666",fontWeight:700}}>🛡 빨간 칸 배치 불가 (이번 턴 한정)</div>
+      {!isCombatSel&&cooldown?.for==="player"&&turn==="player"&&(
+        <div style={{width:"100%",maxWidth:"360px",background:"#2a0a0a",border:"1px solid #ff4444",borderRadius:"9px",padding:"6px 12px",marginBottom:"7px",textAlign:"center"}}>
+          <div style={{fontSize:"10px",color:"#ff6666",fontWeight:700}}>🛡 빨간 칸 배치 불가 (이번 턴)</div>
+        </div>
+      )}
+      {!isCombatSel&&turn==="player"&&turnPhase==="action"&&(
+        <div style={{width:"100%",maxWidth:"360px",background:"#1a2010",border:"1px solid #ffe066",borderRadius:"9px",padding:"6px 12px",marginBottom:"7px",textAlign:"center"}}>
+          <div style={{fontSize:"10px",color:"#ffe066",fontWeight:700}}>
+            {selUnit?`${EMOJI[board[selUnit.row][selUnit.col]?.type||"rock"]} 타겟을 선택하세요`:"앞면 유닛을 선택하거나 건너뛰세요"}
+          </div>
         </div>
       )}
 
       {/* 보드 */}
-      <div style={{display:"grid",gridTemplateColumns:`repeat(${BOARD},1fr)`,gap:"3px",marginBottom:"10px",width:"100%",maxWidth:"360px"}}>
+      <div style={{display:"grid",gridTemplateColumns:`repeat(${BOARD},1fr)`,gap:"3px",marginBottom:"8px",width:"100%",maxWidth:"360px"}}>
         {board.map((row,r)=>board[r].map((cell,c)=>{
           const isLast=lastPlaced?.[0]===r&&lastPlaced?.[1]===c;
-          const isMyPlaced=combatSelect&&combatSelect.row===r&&combatSelect.col===c;
-          const isTarget=combatSelect&&combatSelect.remaining.some(([er,ec])=>er===r&&ec===c);
+          const isCombatTarget=isCombatSel&&combatSelect.remaining.some(([er,ec])=>er===r&&ec===c);
+          const isSelUnitCell=selUnit?.row===r&&selUnit?.col===c;
+          const isActionTarget=actionTargets.some(t=>t.r===r&&t.c===c);
+          const actionKind=actionTargets.find(t=>t.r===r&&t.c===c)?.kind;
           const isCooldownCell=cooldownCellSet.has(`${r},${c}`);
-          const isBlockedCell=playerBlockedSet.has(`${r},${c}`)&&!cell;
+          const isBlocked=playerBlockedSet.has(`${r},${c}`)&&!cell;
+          const isScRange=scRangeSet.has(`${r},${c}`)&&!cell;
+          const isSelectableUnit=turn==="player"&&turnPhase==="action"&&!selUnit&&cell?.player===0&&cell?.revealed&&cell?.type!=="scissors";
 
           let bg="#181830",border="1px solid #222244";
-          if(cell?.player===0&&!cell?.revealed){bg="#112244";border="1px solid #2255aa";}
-          if(cell?.player===1&&!cell?.revealed){bg="#2a1111";border="1px solid #aa2222";}
-          if(cell?.player===0&&cell?.revealed){bg="#0a1f3d";border="2px solid #6aaeff";}
-          if(cell?.player===1&&cell?.revealed){bg="#3d0a0a";border="2px solid #ff7070";}
-          if(isLast&&!isMyPlaced)border="2px solid #ffe066";
-          if(isMyPlaced){bg="#1a3a00";border="2px solid #5dff5d";}
-          if(isTarget){bg="#3a1a00";border="2px solid #ffe066";}
+          if(cell?.player===0&&!cell.revealed){bg="#112244";border="1px solid #2255aa";}
+          if(cell?.player===1&&!cell.revealed){bg="#2a1111";border="1px solid #aa2222";}
+          if(cell?.player===0&&cell.revealed){bg="#0a1f3d";border="2px solid #6aaeff";}
+          if(cell?.player===1&&cell.revealed){bg="#3d0a0a";border="2px solid #ff7070";}
+          if(isLast)border="2px solid #ffe066";
+          if(isCombatTarget){bg="#3a1a00";border="2px solid #ffe066";}
+          if(isSelUnitCell){bg="#1a3a00";border="2px solid #5dff5d";}
+          if(isActionTarget&&actionKind==="move"){bg="#0a2a0a";border="2px solid #44ff44";}
+          if(isActionTarget&&actionKind==="attack"){bg="#3a1000";border="2px solid #ff8800";}
+          if(isActionTarget&&actionKind==="push"){bg="#002a2a";border="2px solid #44ffff";}
           if(isCooldownCell&&cell){border="2px solid #ff4444";}
-          if(isBlockedCell){bg="#3a0808";border="1px solid #ff3333";}
+          if(isBlocked){bg="#3a0808";border="1px solid #ff3333";}
+          if(isScRange){bg="#1a1a00";border="1px dashed #ffe06666";}
+          if(isSelectableUnit){border="2px solid #ffe066";}
 
-          const canClick=isTarget||((!cell)&&turn==="player"&&!gameOver&&!isSelecting&&!isBlockedCell);
+          const canClick=
+            (turn==="player"&&turnPhase==="placement"&&!cell&&!isBlocked&&!isCombatSel)||
+            isCombatTarget||
+            (turn==="player"&&turnPhase==="action"&&!selUnit&&cell?.player===0&&cell?.revealed)||
+            (turn==="player"&&turnPhase==="action"&&selUnit&&isActionTarget);
 
           return(
             <div key={`${r}-${c}`} onClick={()=>handleClick(r,c)}
-              style={{
-                width:`${cellSize}px`,height:`${cellSize}px`,
-                background:bg,border,borderRadius:"5px",
-                display:"flex",alignItems:"center",justifyContent:"center",
-                cursor:canClick?"pointer":isBlockedCell?"not-allowed":"default",
-                fontSize:cell?.revealed?`${cellSize*0.46}px`:`${cellSize*0.36}px`,
-                boxShadow:isTarget?"0 0 10px #ffe06699":isCooldownCell&&cell?"0 0 8px #ff444455":isLast&&!isMyPlaced?"0 0 8px #ffe06644":"none",
-              }}>
-              {isBlockedCell
-                ?<span style={{fontSize:`${cellSize*0.3}px`,color:"#ff3333",opacity:0.7}}>✕</span>
-                :cell?(cell.revealed?EMOJI[cell.type]:<span style={{color:cell.player===0?"#5599cc":"#cc4444"}}>●</span>):""}
+              style={{width:`${cellSize}px`,height:`${cellSize}px`,background:bg,border,borderRadius:"5px",display:"flex",alignItems:"center",justifyContent:"center",cursor:canClick?"pointer":isBlocked?"not-allowed":"default",fontSize:cell?.revealed?`${cellSize*0.45}px`:`${cellSize*0.34}px`,boxShadow:isCombatTarget||isActionTarget?"0 0 8px #ffe06688":isSelUnitCell?"0 0 8px #5dff5d88":isCooldownCell&&cell?"0 0 6px #ff444466":"none"}}>
+              {isBlocked?<span style={{fontSize:"9px",color:"#ff3333",opacity:0.7}}>✕</span>
+              :isScRange?<span style={{fontSize:"8px",color:"#ffe06644"}}>✦</span>
+              :cell?(cell.revealed?EMOJI[cell.type]:<span style={{color:cell.player===0?"#5599cc":"#cc4444"}}>●</span>):""}
             </div>
           );
         }))}
       </div>
 
-      {/* 돌 선택 버튼 */}
-      {!gameOver&&!isSelecting&&pStones&&(
-        <div style={{display:"flex",gap:"8px",marginBottom:"10px"}}>
+      {/* 배치 단계: 돌 선택 */}
+      {!gameOver&&turn==="player"&&turnPhase==="placement"&&!isCombatSel&&pStones&&(
+        <div style={{display:"flex",gap:"7px",marginBottom:"8px"}}>
           {TYPES.map(type=>(
-            <button key={type} onClick={()=>setSelected(type)}
-              disabled={pStones[type]<=0||turn!=="player"}
-              style={{
-                padding:"8px 13px",borderRadius:"10px",fontSize:"13px",fontWeight:700,
-                cursor:pStones[type]>0&&turn==="player"?"pointer":"not-allowed",
-                border:selected===type?"2px solid #b8a4ff":"2px solid transparent",
-                background:selected===type?"#221a44":"#151525",
-                color:pStones[type]<=0?"#333":"#e0e0f0",
-                opacity:pStones[type]<=0?0.4:1,
-                transform:selected===type?"scale(1.06)":"scale(1)",
-              }}>
-              {EMOJI[type]} {LABEL[type]}<br/>
-              <span style={{fontSize:"11px",color:selected===type?"#9988cc":"#555"}}>({pStones[type]}개)</span>
+            <button key={type} onClick={()=>setSelected(type)} disabled={pStones[type]<=0}
+              style={{padding:"7px 10px",borderRadius:"9px",fontSize:"12px",fontWeight:700,cursor:pStones[type]>0?"pointer":"not-allowed",border:selected===type?"2px solid #b8a4ff":"2px solid transparent",background:selected===type?"#221a44":"#151525",color:pStones[type]<=0?"#333":"#e0e0f0",opacity:pStones[type]<=0?0.4:1,transform:selected===type?"scale(1.05)":"scale(1)"}}>
+              {EMOJI[type]} {LABEL[type]}<br/><span style={{fontSize:"10px",color:selected===type?"#9988cc":"#555"}}>({pStones[type]})</span>
             </button>
           ))}
         </div>
       )}
 
+      {/* 행동 단계: 건너뛰기 */}
+      {!gameOver&&turn==="player"&&turnPhase==="action"&&(
+        <button onClick={skipAction}
+          style={{padding:"8px 20px",borderRadius:"9px",fontSize:"12px",fontWeight:700,border:"1px solid #444",background:"#151525",color:"#888",cursor:"pointer",marginBottom:"8px"}}>
+          행동 건너뛰기 →
+        </button>
+      )}
+
       {/* 게임 오버 */}
       {gameOver&&(
-        <div style={{background:"#13132a",borderRadius:"16px",padding:"16px 24px",textAlign:"center",marginBottom:"10px",
-          border:`2px solid ${winner==="player"?"#5dff5d":winner==="ai"?"#ff6b6b":"#ffe066"}`,
-          boxShadow:`0 0 20px ${winner==="player"?"#5dff5d44":winner==="ai"?"#ff6b6b44":"#ffe06644"}`}}>
-          <div style={{fontSize:"26px",marginBottom:"6px"}}>{winner==="player"?"🏆 승리!":winner==="ai"?"💀 패배...":"🤝 무승부"}</div>
-          <div style={{fontSize:"13px",color:"#666",marginBottom:"12px"}}>나 {pc}개 · AI {ac}개</div>
-          <button onClick={reset} style={{background:"#b8a4ff",color:"#0d0d1a",fontWeight:800,border:"none",borderRadius:"10px",padding:"10px 24px",cursor:"pointer",fontSize:"14px"}}>처음으로</button>
+        <div style={{background:"#13132a",borderRadius:"14px",padding:"12px 20px",textAlign:"center",marginBottom:"8px",border:`2px solid ${winner==="player"?"#5dff5d":winner==="ai"?"#ff6b6b":"#ffe066"}`}}>
+          <div style={{fontSize:"22px",marginBottom:"4px"}}>{winner==="player"?"🏆 승리!":winner==="ai"?"💀 패배...":"🤝 무승부"}</div>
+          <div style={{fontSize:"12px",color:"#666",marginBottom:"10px"}}>나 {pc}개 · AI {ac}개</div>
+          <button onClick={reset} style={{background:"#b8a4ff",color:"#0d0d1a",fontWeight:800,border:"none",borderRadius:"8px",padding:"8px 18px",cursor:"pointer",fontSize:"13px"}}>처음으로</button>
         </div>
       )}
 
-      <div style={{fontSize:"10px",color:"#383850",marginBottom:"8px",textAlign:"center"}}>
-        🪨 &gt; ✂️ &gt; 📄 &gt; 🪨 &nbsp;·&nbsp; ● = 뒷면 &nbsp;·&nbsp; 4방향 인접 시 전투
+      {/* 범례 */}
+      <div style={{fontSize:"9px",color:"#333",marginBottom:"6px",textAlign:"center",lineHeight:1.8}}>
+        🪨이동·공격 <span style={{color:"#44ff44"}}>■</span>이동 <span style={{color:"#ff8800"}}>■</span>공격 <span style={{color:"#44ffff"}}>■</span>밀기대상<br/>
+        ✦ 가위 사정거리 · 🪨>✂️>📄>🪨
       </div>
 
       {/* 전투 로그 */}
-      <div style={{width:"100%",maxWidth:"360px",background:"#0f0f20",borderRadius:"12px",padding:"10px 12px",marginBottom:"16px"}}>
-        <div style={{fontSize:"10px",color:"#333",fontWeight:700,marginBottom:"6px",letterSpacing:"0.05em"}}>⚔ 전투 로그</div>
+      <div style={{width:"100%",maxWidth:"360px",background:"#0f0f20",borderRadius:"10px",padding:"8px 10px"}}>
+        <div style={{fontSize:"9px",color:"#333",fontWeight:700,marginBottom:"4px"}}>⚔ 전투 로그</div>
         {logs.length===0
-          ?<div style={{fontSize:"10px",color:"#222"}}>전투 발생 시 표시됩니다</div>
+          ?<div style={{fontSize:"9px",color:"#222"}}>전투 발생 시 표시됩니다</div>
           :logs.map((log,i)=>(
-            <div key={i} style={{fontSize:"10px",padding:"3px 0",borderBottom:"1px solid #181830",
+            <div key={i} style={{fontSize:"9px",padding:"2px 0",borderBottom:"1px solid #181830",
               color:(!log.isAI&&log.result==="win")||(log.isAI&&log.result==="lose")?"#6aaeff"
-                :(!log.isAI&&log.result==="lose")||(log.isAI&&log.result==="win")?"#ff7070":"#555"}}>
+                :(!log.isAI&&log.result==="lose")||(log.isAI&&log.result==="win")?"#ff7070"
+                :log.result==="neutral"?"#666":"#555"}}>
               {log.isAI?"🔴 ":"🔵 "}{log.text}
             </div>
           ))
         }
       </div>
-
-      <div style={{fontSize:"9px",color:"#1e1e2e",marginBottom:"8px"}}>v6 · 8×8 · 총 {totalTurns}턴</div>
+      <div style={{fontSize:"8px",color:"#1e1e2e",marginTop:"6px"}}>v7 · 8×8 · 총 {totalTurns}턴</div>
     </div>
   );
 }
