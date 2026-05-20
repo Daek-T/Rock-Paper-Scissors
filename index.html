@@ -1,625 +1,935 @@
 <!DOCTYPE html>
 <html lang="ko">
 <head>
-<meta charset="UTF-8"/>
-<meta name="viewport" content="width=device-width,initial-scale=1.0,maximum-scale=1.0,user-scalable=no"/>
-<title>한중일 전략대전 v7</title>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.2/babel.min.js"></script>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="theme-color" content="#0d0f14">
+<title>가위바위보 — QA Proto</title>
 <style>
-*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent;}
-body{background:#0d0d1a;overscroll-behavior:none;}
-button{-webkit-appearance:none;transition:transform 0.1s,opacity 0.1s;}
-button:active{transform:scale(0.92);}
+@import url('https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700;900&family=JetBrains+Mono:wght@400;700&display=swap');
+
+:root {
+  --bg:       #0d0f14;
+  --surface:  #13161e;
+  --surface2: #1a1e2a;
+  --border:   #1e2330;
+  --accent:   #c8a96e;
+  --text:     #d4cfc8;
+  --muted:    #9098a8;
+  --c: #6eb5c8; --b: #6ec87a; --a: #c8a96e; --s: #e87070;
+  --win: #6ec87a; --lose: #e87070; --draw: #c8a96e;
+  --sc: #e8c55a; --rk: #6eb5c8; --pp: #c87ab4;
+
+  /* 반응형 폰트 토큰 */
+  --f-xs:   clamp(10px, 2.2vw, 11px);
+  --f-sm:   clamp(11px, 2.6vw, 13px);
+  --f-md:   clamp(13px, 3.2vw, 15px);
+  --f-lg:   clamp(15px, 4vw,   18px);
+  --f-xl:   clamp(22px, 6vw,   34px);
+  --f-xxl:  clamp(28px, 8vw,   44px);
+  --f-emoji-sm: clamp(20px, 5vw, 26px);
+  --f-emoji-md: clamp(28px, 7vw, 36px);
+  --f-emoji-lg: clamp(48px, 12vw, 72px);
+
+  /* 간격 토큰 */
+  --sp-xs: clamp(4px,  1vw,  6px);
+  --sp-sm: clamp(8px,  2vw,  12px);
+  --sp-md: clamp(12px, 3vw,  18px);
+  --sp-lg: clamp(16px, 4vw,  24px);
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html { background: #0d0f14; }
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: 'Noto Sans KR', sans-serif;
+  font-size: var(--f-sm);
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+.screen { width: 100%; max-width: 640px; padding: var(--sp-md) var(--sp-sm) 60px; }
+.mono { font-family: 'JetBrains Mono', monospace; }
+
+/* ── BUTTONS ── */
+.btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+  padding: clamp(9px,2.2vw,11px) clamp(16px,4vw,22px);
+  border: 1px solid var(--border); border-radius: 6px;
+  background: var(--surface); color: var(--text);
+  font-family: 'Noto Sans KR', sans-serif; font-size: var(--f-md); font-weight: 700;
+  cursor: pointer; transition: all .15s;
+}
+.btn:hover { border-color: var(--accent); color: var(--accent); }
+.btn.primary { background: var(--accent); color: #0d0f14; border-color: var(--accent); }
+.btn.primary:hover { background: #d4b87a; }
+
+/* ── PAGE NAV ── */
+.page-nav {
+  display: flex; align-items: center; justify-content: space-between;
+  padding-bottom: var(--sp-sm); margin-bottom: var(--sp-sm);
+  border-bottom: 1px solid var(--border);
+}
+.nav-label {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: var(--f-xs); letter-spacing: 2px; text-transform: uppercase; color: var(--muted);
+}
+.series-badge { font-family: 'JetBrains Mono', monospace; font-size: var(--f-sm); }
+.sb-win  { color: var(--win); font-weight: 700; }
+.sb-lose { color: var(--lose); }
+
+/* ════════════════════════════════════════
+   START SCREEN
+════════════════════════════════════════ */
+#screen-start {
+  display: flex; flex-direction: column; align-items: center;
+  justify-content: center; min-height: 100vh; text-align: center; gap: 0;
+}
+.start-emoji { font-size: var(--f-emoji-lg); margin-bottom: var(--sp-sm); }
+.start-label {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: var(--f-xs); letter-spacing: 3px; color: var(--accent); margin-bottom: 8px;
+}
+.start-title { font-size: var(--f-xxl); font-weight: 900; color: #fff; margin-bottom: var(--sp-lg); }
+.diff-list { display: flex; flex-direction: column; gap: var(--sp-xs); width: 100%; max-width: 320px; }
+.diff-btn {
+  padding: clamp(12px,3vw,16px) clamp(14px,3.5vw,20px);
+  border: 1px solid var(--border); border-radius: 8px;
+  background: var(--surface); cursor: pointer; text-align: left; transition: border-color .15s;
+}
+.diff-btn:hover { border-color: var(--accent); }
+.diff-btn.easy   { border-left: 3px solid var(--b); }
+.diff-btn.normal { border-left: 3px solid var(--a); }
+.diff-btn.hard   { border-left: 3px solid var(--s); }
+.diff-name { font-size: var(--f-md); font-weight: 700; color: #fff; margin-bottom: 3px; }
+.diff-desc { font-size: var(--f-xs); color: #a8b0be; }
+
+/* ════════════════════════════════════════
+   CHARACTER SELECT
+════════════════════════════════════════ */
+.grade-section { margin-bottom: var(--sp-md); }
+.grade-header { display: flex; align-items: center; gap: var(--sp-xs); margin-bottom: var(--sp-xs); }
+.grade-tag { font-family: 'JetBrains Mono', monospace; font-size: var(--f-lg); font-weight: 700; width: 28px; }
+.grade-meta { font-family: 'JetBrains Mono', monospace; font-size: var(--f-xs); color: var(--muted); }
+
+.char-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: clamp(6px,1.5vw,8px); }
+.char-card {
+  background: var(--surface); border: 1px solid var(--border); border-radius: 8px;
+  padding: clamp(8px,2vw,12px) clamp(6px,1.5vw,10px); cursor: pointer; transition: all .15s;
+}
+.char-card:hover { border-color: var(--accent); transform: translateY(-2px); }
+.cc-emoji { font-size: var(--f-emoji-sm); margin-bottom: 4px; }
+.cc-name  { font-size: var(--f-sm); font-weight: 700; color: #fff; margin-bottom: 2px; }
+.cc-sub   { font-family: 'JetBrains Mono', monospace; font-size: var(--f-xs); color: var(--muted); margin-bottom: 6px; }
+.mini-stat { margin: 3px 0; }
+.ms-label {
+  display: flex; justify-content: space-between;
+  font-family: 'JetBrains Mono', monospace; font-size: var(--f-xs); color: var(--muted); margin-bottom: 2px;
+}
+.ms-bar { height: 4px; background: var(--border); border-radius: 2px; overflow: hidden; }
+.ms-fill { height: 100%; border-radius: 2px; }
+.sc-bar { background: var(--sc); } .rk-bar { background: var(--rk); } .pp-bar { background: var(--pp); }
+
+/* ════════════════════════════════════════
+   PREVIEW
+════════════════════════════════════════ */
+.preview-vs {
+  display: grid; grid-template-columns: 1fr auto 1fr;
+  gap: var(--sp-sm); align-items: center; margin: var(--sp-md) 0;
+}
+.prev-card {
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: 10px; padding: clamp(12px,3vw,18px) clamp(8px,2vw,12px); text-align: center;
+}
+.prev-card.me { border-color: var(--accent); }
+.prev-emoji  { font-size: var(--f-emoji-md); margin-bottom: 6px; }
+.prev-grade  { font-family: 'JetBrains Mono', monospace; font-size: var(--f-xs); margin-bottom: 2px; }
+.prev-name   { font-size: var(--f-md); font-weight: 700; color: #fff; margin-bottom: 2px; }
+.prev-hp     { font-family: 'JetBrains Mono', monospace; font-size: var(--f-xs); color: var(--muted); margin-bottom: var(--sp-sm); }
+.prev-stats  { display: flex; flex-direction: column; gap: 4px; }
+.prev-stat   { font-family: 'JetBrains Mono', monospace; font-size: var(--f-xs); color: var(--muted); }
+.vs-badge    { font-family: 'JetBrains Mono', monospace; font-size: clamp(16px,4vw,22px); font-weight: 700; color: var(--border); }
+.preview-footer { text-align: center; margin-top: var(--sp-sm); }
+
+/* ════════════════════════════════════════
+   BATTLE
+════════════════════════════════════════ */
+.battle-top { display: flex; align-items: center; justify-content: space-between; margin-bottom: var(--sp-sm); }
+.turn-pill {
+  font-family: 'JetBrains Mono', monospace; font-size: var(--f-xs);
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: 20px; padding: 5px clamp(10px,2.5vw,14px);
+}
+
+.fighters { display: grid; grid-template-columns: 1fr 1fr; gap: clamp(6px,1.5vw,10px); margin-bottom: var(--sp-sm); }
+.fighter {
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: 8px; padding: clamp(8px,2vw,12px);
+}
+.fighter.me { border-color: #252a38; }
+.ft-head { display: flex; align-items: center; gap: clamp(4px,1.2vw,8px); margin-bottom: var(--sp-xs); }
+.ft-emoji { font-size: clamp(18px,4.5vw,24px); }
+.ft-name  { font-size: var(--f-sm); font-weight: 700; line-height: 1.2; }
+.ft-grade { font-family: 'JetBrains Mono', monospace; font-size: var(--f-xs); }
+
+.hp-row { margin-bottom: 4px; }
+.hp-label-row {
+  display: flex; justify-content: space-between;
+  font-family: 'JetBrains Mono', monospace; font-size: var(--f-xs); color: var(--muted); margin-bottom: 4px;
+}
+.hp-bar { height: clamp(6px,1.5vw,9px); background: var(--border); border-radius: 5px; overflow: hidden; }
+.hp-fill { height: 100%; border-radius: 5px; transition: width .4s ease; background: var(--win); }
+.hp-fill.med { background: var(--draw); }
+.hp-fill.low { background: var(--lose); }
+
+.ft-chips { display: flex; gap: clamp(4px,1vw,6px); margin-top: var(--sp-xs); flex-wrap: wrap; }
+.chip {
+  font-family: 'JetBrains Mono', monospace; font-size: var(--f-xs);
+  padding: 2px clamp(3px,1vw,5px); border-radius: 3px; background: var(--surface2);
+}
+.chip.sc { color: var(--sc); } .chip.rk { color: var(--rk); } .chip.pp { color: var(--pp); }
+
+/* last result */
+.last-result {
+  text-align: center; min-height: clamp(32px,8vw,44px);
+  display: flex; align-items: center; justify-content: center;
+  margin-bottom: var(--sp-sm);
+}
+.result-msg {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: clamp(11px, 3vw, 14px);
+  font-weight: 700;
+  word-break: keep-all;
+  line-height: 1.4;
+}
+.result-msg.win  { color: var(--win); }
+.result-msg.lose { color: var(--lose); }
+.result-msg.draw { color: var(--draw); }
+.result-msg.idle { color: var(--muted); font-weight: 400; }
+
+/* RPS buttons */
+.rps-row { display: grid; grid-template-columns: repeat(3,1fr); gap: clamp(5px,1.5vw,8px); margin-bottom: var(--sp-sm); }
+.rps-btn {
+  background: var(--surface); border: 1px solid var(--border); border-radius: 10px;
+  padding: clamp(8px,2.5vw,14px) 4px; cursor: pointer; text-align: center; transition: all .15s;
+  font-family: 'Noto Sans KR', sans-serif;
+}
+.rps-btn:hover:not(:disabled) { transform: translateY(-3px); }
+.rps-btn.sc:hover:not(:disabled) { border-color: var(--sc); }
+.rps-btn.rk:hover:not(:disabled) { border-color: var(--rk); }
+.rps-btn.pp:hover:not(:disabled) { border-color: var(--pp); }
+.rps-btn:disabled { opacity: .35; cursor: not-allowed; transform: none !important; }
+.rps-icon  { font-size: clamp(24px,6.5vw,32px); display: block; margin-bottom: 3px; }
+.rps-label { font-family: 'JetBrains Mono', monospace; font-size: var(--f-xs); color: var(--muted); display: block; margin-bottom: 3px; }
+.rps-atk   { font-family: 'JetBrains Mono', monospace; font-size: clamp(12px,3vw,15px); font-weight: 700; display: block; }
+.rps-btn.sc .rps-atk { color: var(--sc); }
+.rps-btn.rk .rps-atk { color: var(--rk); }
+.rps-btn.pp .rps-atk { color: var(--pp); }
+
+/* battle log */
+.log-box {
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: 8px; padding: clamp(8px,2vw,12px); max-height: clamp(110px,28vw,148px); overflow-y: auto;
+}
+.log-head {
+  font-family: 'JetBrains Mono', monospace; font-size: var(--f-xs);
+  letter-spacing: 2px; text-transform: uppercase; color: var(--muted); margin-bottom: 6px;
+}
+.log-row {
+  font-family: 'JetBrains Mono', monospace; font-size: var(--f-xs);
+  padding: 4px 0; border-bottom: 1px solid var(--border); color: var(--muted);
+  word-break: keep-all;
+}
+.log-row:last-child { border-bottom: none; }
+.log-win { color: var(--win); } .log-lose { color: var(--lose); } .log-draw { color: var(--draw); }
+
+/* ════════════════════════════════════════
+   END SCREENS
+════════════════════════════════════════ */
+.end-wrap {
+  display: flex; flex-direction: column; align-items: center;
+  justify-content: center; min-height: 100vh; text-align: center; gap: var(--sp-sm);
+  padding: var(--sp-md);
+}
+.end-icon  { font-size: var(--f-emoji-lg); }
+.end-label {
+  font-family: 'JetBrains Mono', monospace; font-size: var(--f-xs);
+  letter-spacing: 3px; text-transform: uppercase; color: var(--muted);
+}
+.end-title { font-size: var(--f-xl); font-weight: 900; }
+.end-title.win  { color: var(--win); }
+.end-title.lose { color: var(--lose); }
+.end-title.draw { color: var(--draw); }
+.end-sub { font-size: var(--f-sm); color: var(--muted); word-break: keep-all; }
+
+.hp-result-box {
+  display: flex; gap: 0;
+  background: var(--surface); border: 1px solid var(--border); border-radius: 8px; overflow: hidden;
+  width: 100%; max-width: 280px;
+}
+.hp-result-item { padding: clamp(10px,2.5vw,14px) clamp(16px,4vw,24px); text-align: center; flex: 1; }
+.hp-result-item + .hp-result-item { border-left: 1px solid var(--border); }
+.hri-label {
+  font-family: 'JetBrains Mono', monospace; font-size: var(--f-xs);
+  color: var(--muted); margin-bottom: 4px; letter-spacing: 1px;
+}
+.hri-val { font-size: clamp(22px,6vw,28px); font-weight: 700; color: #fff; font-family: 'JetBrains Mono', monospace; }
+
+.series-disp {
+  display: flex; align-items: center; gap: var(--sp-md);
+  background: var(--surface); border: 1px solid var(--border); border-radius: 8px;
+  padding: clamp(10px,2.5vw,14px) clamp(20px,5vw,28px);
+}
+.sd-side { text-align: center; }
+.sd-num   { font-family: 'JetBrains Mono', monospace; font-size: clamp(28px,8vw,36px); font-weight: 700; color: #fff; }
+.sd-label { font-family: 'JetBrains Mono', monospace; font-size: var(--f-xs); color: var(--muted); }
+.sd-sep   { font-family: 'JetBrains Mono', monospace; font-size: clamp(16px,4vw,20px); color: var(--border); }
+
+.btn-row { display: flex; gap: var(--sp-xs); flex-wrap: wrap; justify-content: center; }
+
+/* scrollbar */
+::-webkit-scrollbar { width: 4px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+
+/* ════════════════════════════════════════
+   MEDIA QUERIES
+════════════════════════════════════════ */
+@media (max-width: 360px) {
+  .char-grid { grid-template-columns: repeat(3, 1fr); gap: 4px; }
+  .char-card { padding: 6px 4px; }
+  .preview-vs { gap: 6px; }
+  .prev-card { padding: 10px 6px; }
+  .fighters { gap: 6px; }
+  .ft-chips { gap: 3px; }
+  .chip { font-size: 9px; padding: 1px 3px; }
+  .rps-row { gap: 4px; }
+}
+
+@media (min-width: 480px) {
+  .screen { padding: 24px 24px 80px; }
+}
 </style>
 </head>
 <body>
-<div id="root"></div>
-<script type="text/babel">
-const{useState,useEffect,useCallback}=React;
-const BOARD=8,TOTAL=24;
-const TYPES=["rock","scissors","paper"];
-const LABEL={rock:"바위",scissors:"가위",paper:"보"};
-const EMOJI={rock:"🪨",scissors:"✂️",paper:"📄"};
-const DIRS=[[-1,0],[0,1],[1,0],[0,-1]];
-const SC_RANGE=[[-2,0],[0,2],[2,0],[0,-2]]; // 가위 사정거리
 
-function rps(a,b){
-  if(a===b)return 0;
-  if((a==="rock"&&b==="scissors")||(a==="scissors"&&b==="paper")||(a==="paper"&&b==="rock"))return 1;
-  return -1;
-}
-const initBoard=()=>Array(BOARD).fill(null).map(()=>Array(BOARD).fill(null));
-const initStones=()=>({rock:8,scissors:8,paper:8});
-const copyBoard=b=>b.map(r=>r.map(c=>c?{...c}:null));
-const countOnBoard=(board,player)=>board.flat().filter(c=>c?.player===player).length;
-const sumStones=s=>s.rock+s.scissors+s.paper;
-function randomDist(){let a=2,b=2,c=2,rem=18;const x=Math.floor(Math.random()*rem),y=Math.floor(Math.random()*(rem-x));return{rock:a+x,scissors:b+y,paper:c+(rem-x-y)};}
-function getBlockedSet(cells){const s=new Set();for(const[r,c]of cells)for(const[dr,dc]of DIRS){const nr=r+dr,nc=c+dc;if(nr>=0&&nr<BOARD&&nc>=0&&nc<BOARD)s.add(`${nr},${nc}`);}return s;}
+<!-- ════ START ════ -->
+<div class="screen" id="screen-start">
+<div class="end-wrap">
+  <div class="start-emoji">✌️✊🖐️</div>
+  <div class="start-label">QA Prototype v0.1</div>
+  <div class="start-title">가위바위보</div>
+  <div class="diff-list">
+    <button class="diff-btn easy" onclick="selectDiff('easy')">
+      <div class="diff-name">🟢 쉬움</div>
+      <div class="diff-desc">AI가 완전 랜덤으로 선택합니다</div>
+    </button>
+    <button class="diff-btn normal" onclick="selectDiff('normal')">
+      <div class="diff-name">🟡 중간</div>
+      <div class="diff-desc">최근 패턴을 일부 참고합니다</div>
+    </button>
+    <button class="diff-btn hard" onclick="selectDiff('hard')">
+      <div class="diff-name">🔴 어려움</div>
+      <div class="diff-desc">전체 히스토리를 분석합니다</div>
+    </button>
+  </div>
+</div>
+</div>
 
-// 뒷면 1:1 전투
-function singleCombat(brd,pr,pc,er,ec){
-  const b=copyBoard(brd);
-  const s=b[pr][pc],e=b[er][ec];
-  if(!s||!e)return{board:b,log:null,alive:false};
-  b[pr][pc]={...s,revealed:true};b[er][ec]={...e,revealed:true};
-  const res=rps(s.type,e.type);let log,alive;
-  if(res===1){b[er][ec]=null;log={text:`${EMOJI[s.type]}${LABEL[s.type]} vs ${LABEL[e.type]}${EMOJI[e.type]} → 승리!`,result:"win"};alive=true;}
-  else if(res===-1){b[pr][pc]=null;log={text:`${EMOJI[s.type]}${LABEL[s.type]} vs ${LABEL[e.type]}${EMOJI[e.type]} → 패배`,result:"lose"};alive=false;}
-  else{b[pr][pc]=null;b[er][ec]=null;log={text:`${EMOJI[s.type]}${LABEL[s.type]} vs ${LABEL[e.type]}${EMOJI[e.type]} → 무승부`,result:"draw"};alive=false;}
-  return{board:b,log,alive};
-}
+<!-- ════ CHAR SELECT ════ -->
+<div class="screen" id="screen-char-select" hidden>
+  <div class="page-nav">
+    <div class="nav-label">캐릭터 선택 · 게임 <span id="cs-gnum">1</span>/3</div>
+    <div class="series-badge" id="cs-badge"></div>
+  </div>
+  <div id="char-grid"></div>
+</div>
 
-// 앞면 1:1 전투 (바위 이동공격, 가위 원거리)
-function faceUpCombat(brd,ar,ac,dr2,dc2){
-  const b=copyBoard(brd);
-  const att=b[ar][ac],def=b[dr2][dc2];
-  if(!att||!def)return{board:b,log:null};
-  const res=rps(att.type,def.type);let log;
-  if(res===1){b[dr2][dc2]=null;log={text:`${EMOJI[att.type]}${LABEL[att.type]} ⚔ ${LABEL[def.type]}${EMOJI[def.type]} → 격파!`,result:"win",isUnit:true};}
-  else if(res===-1){b[ar][ac]=null;log={text:`${EMOJI[att.type]}${LABEL[att.type]} ⚔ ${LABEL[def.type]}${EMOJI[def.type]} → 격파당함`,result:"lose",isUnit:true};}
-  else{b[ar][ac]=null;b[dr2][dc2]=null;log={text:`${EMOJI[att.type]}${LABEL[att.type]} ⚔ ${LABEL[def.type]}${EMOJI[def.type]} → 무승부`,result:"draw",isUnit:true};}
-  return{board:b,log};
-}
-
-// 가위 자동 공격 체크 (scissorsPlayer 소유의 가위가 발동)
-function checkScissors(brd,scissorsPlayer){
-  let b=copyBoard(brd);const logs=[];
-  for(let r=0;r<BOARD;r++)for(let c=0;c<BOARD;c++){
-    const u=b[r][c];
-    if(!u||u.player!==scissorsPlayer||!u.revealed||u.type!=="scissors")continue;
-    for(const[dr,dc]of SC_RANGE){
-      const nr=r+dr,nc=c+dc;
-      if(nr<0||nr>=BOARD||nc<0||nc>=BOARD)continue;
-      const t=b[nr][nc];
-      if(!t||t.player===scissorsPlayer||!t.revealed)continue;
-      const{board:nb,log}=faceUpCombat(b,r,c,nr,nc);
-      b=nb;if(log)logs.push({...log,isAI:scissorsPlayer===1});
-      if(!b[r][c])break;
-    }
-  }
-  return{board:b,logs};
-}
-
-// AI 자동 뒷면 전투
-function resolveAllDirect(brd,row,col,player){
-  let b=copyBoard(brd);const logs=[];
-  const stone=b[row][col];if(!stone)return{board:b,logs,survived:false};
-  const enemies=[];
-  for(const[dr,dc]of DIRS){const nr=row+dr,nc=col+dc;if(nr<0||nr>=BOARD||nc<0||nc>=BOARD)continue;const cell=b[nr][nc];if(cell&&cell.player!==player&&!cell.revealed)enemies.push([nr,nc]);}
-  enemies.sort(([ar,ac],[br2,bc])=>{const ra=b[ar][ac]?rps(stone.type,b[ar][ac].type):0,rb=b[br2][bc]?rps(stone.type,b[br2][bc].type):0;return rb-ra;});
-  let alive=true,hadCombat=false;
-  for(const[er,ec]of enemies){
-    if(!alive)break;const cur=b[row][col],opp=b[er][ec];if(!cur||!opp)break;
-    hadCombat=true;b[row][col]={...cur,revealed:true};b[er][ec]={...opp,revealed:true};
-    const res=rps(cur.type,opp.type);
-    if(res===1){b[er][ec]=null;logs.push({text:`${EMOJI[cur.type]}${LABEL[cur.type]} vs ${LABEL[opp.type]}${EMOJI[opp.type]} → 승리!`,result:"win",isAI:player===1});}
-    else if(res===-1){b[row][col]=null;logs.push({text:`${EMOJI[cur.type]}${LABEL[cur.type]} vs ${LABEL[opp.type]}${EMOJI[opp.type]} → 패배`,result:"lose",isAI:player===1});alive=false;}
-    else{b[row][col]=null;b[er][ec]=null;logs.push({text:`${EMOJI[cur.type]}${LABEL[cur.type]} vs ${LABEL[opp.type]}${EMOJI[opp.type]} → 무승부`,result:"draw",isAI:player===1});alive=false;}
-  }
-  return{board:b,logs,survived:hadCombat&&alive&&!!b[row][col]};
-}
-
-// 보 밀기 결과
-function getPushResult(brd,fromR,fromC,stoneR,stoneC){
-  const b=copyBoard(brd);
-  const dr=stoneR-fromR,dc=stoneC-fromC;
-  const pushed=b[stoneR][stoneC];
-  b[stoneR][stoneC]=null;
-  let landR=stoneR,landC=stoneC,colR=-1,colC=-1;
-  let curR=stoneR,curC=stoneC;
-  while(true){
-    const nr=curR+dr,nc=curC+dc;
-    if(nr<0||nr>=BOARD||nc<0||nc>=BOARD){landR=curR;landC=curC;break;}
-    const cell=b[nr][nc];
-    if(!cell){curR=nr;curC=nc;landR=curR;landC=curC;}
-    else if(!cell.revealed){landR=curR;landC=curC;colR=nr;colC=nc;break;}
-    else{landR=curR;landC=curC;break;}
-  }
-  b[landR][landC]=pushed;
-  const logs=[];
-  if(colR>=0){
-    const col2=b[colR][colC];
-    b[landR][landC]={...pushed,revealed:true};b[colR][colC]={...col2,revealed:true};
-    const res=rps(pushed.type,col2.type);
-    if(res===1){b[colR][colC]=null;logs.push({text:`📄보 밀기: ${EMOJI[pushed.type]} vs ${EMOJI[col2.type]} → 충돌 승리!`,result:"win"});}
-    else if(res===-1){b[landR][landC]=null;logs.push({text:`📄보 밀기: ${EMOJI[pushed.type]} vs ${EMOJI[col2.type]} → 충돌 패배`,result:"lose"});}
-    else{b[landR][landC]=null;b[colR][colC]=null;logs.push({text:`📄보 밀기: ${EMOJI[pushed.type]} vs ${EMOJI[col2.type]} → 무승부`,result:"draw"});}
-  }else{logs.push({text:"📄보 밀기: 충돌 없이 슬라이드",result:"neutral"});}
-  return{board:b,logs};
-}
-
-// ── 설정 화면 ──────────────────────────────────────
-function SetupScreen({onStart}){
-  const[dist,setDist]=useState({rock:8,scissors:8,paper:8});
-  const used=sumStones(dist),rem=TOTAL-used;
-  const adj=(type,d)=>{if(dist[type]+d<0)return;if(d>0&&rem<=0)return;setDist(p=>({...p,[type]:p[type]+d}));};
-  return(
-    <div style={{fontFamily:"system-ui,sans-serif",background:"#0d0d1a",minHeight:"100vh",color:"#e0e0f0",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",padding:"20px"}}>
-      <div style={{fontSize:"26px",marginBottom:"6px"}}>⚔️</div>
-      <h1 style={{fontSize:"19px",fontWeight:800,color:"#b8a4ff",margin:"0 0 4px"}}>한중일 전략대전</h1>
-      <p style={{fontSize:"11px",color:"#555",margin:"0 0 24px",textAlign:"center"}}>24개 돌을 원하는 대로 배분하세요<br/>상대는 내 분포를 알 수 없어요</p>
-      <div style={{background:"#13132a",borderRadius:"16px",padding:"20px 24px",width:"100%",maxWidth:"300px",marginBottom:"16px"}}>
-        <div style={{fontSize:"12px",color:"#888",marginBottom:"14px",textAlign:"center"}}>배분 가능 <span style={{color:rem===0?"#5dff5d":"#ffe066",fontWeight:800,fontSize:"15px"}}>{rem}</span>개 남음</div>
-        {TYPES.map(type=>(
-          <div key={type} style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:"14px"}}>
-            <div style={{fontSize:"14px",fontWeight:700,width:"76px"}}>{EMOJI[type]} {LABEL[type]}</div>
-            <div style={{display:"flex",alignItems:"center",gap:"12px"}}>
-              <button onClick={()=>adj(type,-1)} style={{width:"32px",height:"32px",borderRadius:"7px",border:"none",background:"#2a1a4a",color:"#b8a4ff",fontSize:"20px",cursor:"pointer",fontWeight:700}}>−</button>
-              <span style={{fontSize:"20px",fontWeight:900,minWidth:"28px",textAlign:"center"}}>{dist[type]}</span>
-              <button onClick={()=>adj(type,1)} disabled={rem<=0} style={{width:"32px",height:"32px",borderRadius:"7px",border:"none",background:rem<=0?"#1a1a2e":"#2a1a4a",color:rem<=0?"#333":"#b8a4ff",fontSize:"20px",cursor:rem<=0?"not-allowed":"pointer",fontWeight:700}}>+</button>
-            </div>
-          </div>
-        ))}
-        <div style={{height:"8px",borderRadius:"4px",overflow:"hidden",display:"flex",marginTop:"4px",gap:"2px"}}>
-          <div style={{width:`${(dist.rock/TOTAL)*100}%`,background:"#6aaeff",borderRadius:"4px",transition:"width 0.2s"}}/>
-          <div style={{width:`${(dist.scissors/TOTAL)*100}%`,background:"#ff7070",borderRadius:"4px",transition:"width 0.2s"}}/>
-          <div style={{width:`${(dist.paper/TOTAL)*100}%`,background:"#ffe066",borderRadius:"4px",transition:"width 0.2s"}}/>
-        </div>
-        <div style={{display:"flex",justifyContent:"space-between",fontSize:"9px",color:"#444",marginTop:"4px"}}>
-          <span>🪨 {dist.rock}</span><span>✂️ {dist.scissors}</span><span>📄 {dist.paper}</span>
-        </div>
-      </div>
-      <div style={{background:"#13132a",borderRadius:"10px",padding:"10px 14px",width:"100%",maxWidth:"300px",fontSize:"10px",color:"#555",lineHeight:1.9,marginBottom:"16px"}}>
-        <div style={{color:"#777",fontWeight:700,marginBottom:"2px"}}>v7 신규 규칙</div>
-        <div>🪨 바위(앞면): 1칸 이동 후 인접 공격</div>
-        <div>✂️ 가위(앞면): 2칸 앞 적 자동 공격</div>
-        <div>📄 보(앞면): 인접 뒷면 돌 밀기</div>
-        <div>앞면↔뒷면: 전투 없음</div>
-      </div>
-      <button onClick={()=>rem===0&&onStart(dist)} disabled={rem!==0}
-        style={{background:rem===0?"#b8a4ff":"#1e1e38",color:rem===0?"#0d0d1a":"#444",fontWeight:800,border:"none",borderRadius:"12px",padding:"13px 34px",cursor:rem===0?"pointer":"not-allowed",fontSize:"15px"}}>
-        {rem===0?"게임 시작 →":`${rem}개 더 배분하세요`}
-      </button>
+<!-- ════ PREVIEW ════ -->
+<div class="screen" id="screen-preview" hidden>
+  <div class="page-nav">
+    <div class="nav-label">대전 준비 · 게임 <span id="pv-gnum">1</span>/3</div>
+    <div class="series-badge" id="pv-badge"></div>
+  </div>
+  <div class="preview-vs">
+    <div class="prev-card me">
+      <div class="prev-emoji" id="pv-p-emoji"></div>
+      <div class="prev-grade" id="pv-p-grade"></div>
+      <div class="prev-name"  id="pv-p-name"></div>
+      <div class="prev-hp"   id="pv-p-hp"></div>
+      <div class="prev-stats" id="pv-p-stats"></div>
     </div>
-  );
+    <div class="vs-badge">VS</div>
+    <div class="prev-card">
+      <div class="prev-emoji" id="pv-a-emoji"></div>
+      <div class="prev-grade" id="pv-a-grade"></div>
+      <div class="prev-name"  id="pv-a-name"></div>
+      <div class="prev-hp"   id="pv-a-hp"></div>
+      <div class="prev-stats" id="pv-a-stats"></div>
+    </div>
+  </div>
+  <div class="preview-footer">
+    <button class="btn primary" onclick="startBattle()" style="font-size:15px;padding:13px 36px;">⚔️ 대전 시작</button>
+  </div>
+</div>
+
+<!-- ════ BATTLE ════ -->
+<div class="screen" id="screen-battle" hidden>
+  <div class="battle-top">
+    <div class="nav-label">BATTLE</div>
+    <div class="series-badge" id="bt-badge"></div>
+    <div class="turn-pill">턴 <span id="bt-turn">1</span> / 10</div>
+  </div>
+
+  <div class="fighters">
+    <div class="fighter me">
+      <div class="ft-head">
+        <span id="bt-p-emoji" class="ft-emoji"></span>
+        <div>
+          <div class="ft-name"  id="bt-p-name"></div>
+          <div class="ft-grade" id="bt-p-grade"></div>
+        </div>
+      </div>
+      <div class="hp-row">
+        <div class="hp-label-row"><span>HP</span><span id="bt-p-hp-txt"></span></div>
+        <div class="hp-bar"><div class="hp-fill" id="bt-p-hp-bar"></div></div>
+      </div>
+      <div class="ft-chips">
+        <span class="chip sc" id="bt-p-sc"></span>
+        <span class="chip rk" id="bt-p-rk"></span>
+        <span class="chip pp" id="bt-p-pp"></span>
+      </div>
+    </div>
+    <div class="fighter">
+      <div class="ft-head">
+        <span id="bt-a-emoji" class="ft-emoji"></span>
+        <div>
+          <div class="ft-name"  id="bt-a-name"></div>
+          <div class="ft-grade" id="bt-a-grade"></div>
+        </div>
+      </div>
+      <div class="hp-row">
+        <div class="hp-label-row"><span>HP</span><span id="bt-a-hp-txt"></span></div>
+        <div class="hp-bar"><div class="hp-fill" id="bt-a-hp-bar"></div></div>
+      </div>
+      <div class="ft-chips">
+        <span class="chip sc" id="bt-a-sc"></span>
+        <span class="chip rk" id="bt-a-rk"></span>
+        <span class="chip pp" id="bt-a-pp"></span>
+      </div>
+    </div>
+  </div>
+
+  <div class="last-result">
+    <div class="result-msg idle" id="bt-result">패를 선택하세요</div>
+  </div>
+
+  <div class="rps-row">
+    <button class="rps-btn sc" onclick="playRound('scissors')">
+      <span class="rps-icon">✌️</span>
+      <span class="rps-label">가위</span>
+      <span class="rps-atk" id="btn-sc">ATK 0</span>
+    </button>
+    <button class="rps-btn rk" onclick="playRound('rock')">
+      <span class="rps-icon">✊</span>
+      <span class="rps-label">바위</span>
+      <span class="rps-atk" id="btn-rk">ATK 0</span>
+    </button>
+    <button class="rps-btn pp" onclick="playRound('paper')">
+      <span class="rps-icon">🖐️</span>
+      <span class="rps-label">보</span>
+      <span class="rps-atk" id="btn-pp">ATK 0</span>
+    </button>
+  </div>
+
+  <div class="log-box">
+    <div class="log-head">전투 기록</div>
+    <div id="log-body"><div class="log-row" style="color:var(--muted)">— 아직 기록 없음 —</div></div>
+  </div>
+</div>
+
+<!-- ════ GAME END ════ -->
+<div class="screen" id="screen-game-end" hidden>
+<div class="end-wrap">
+  <div class="end-icon"  id="ge-icon"></div>
+  <div class="end-label">GAME <span id="ge-gnum"></span> / 3</div>
+  <div class="end-title" id="ge-title"></div>
+  <div class="end-sub"   id="ge-sub"></div>
+  <div class="hp-result-box">
+    <div class="hp-result-item">
+      <div class="hri-label">나의 남은 HP</div>
+      <div class="hri-val" id="ge-php"></div>
+    </div>
+    <div class="hp-result-item">
+      <div class="hri-label">AI 남은 HP</div>
+      <div class="hri-val" id="ge-ahp"></div>
+    </div>
+  </div>
+  <div class="series-disp">
+    <div class="sd-side"><div class="sd-num" id="ge-pscore"></div><div class="sd-label">나</div></div>
+    <div class="sd-sep">—</div>
+    <div class="sd-side"><div class="sd-num" id="ge-ascore"></div><div class="sd-label">AI</div></div>
+  </div>
+  <div class="btn-row" id="ge-btns"></div>
+</div>
+</div>
+
+<!-- ════ SERIES END ════ -->
+<div class="screen" id="screen-series-end" hidden>
+<div class="end-wrap">
+  <div class="end-icon"  id="se-icon"></div>
+  <div class="end-label">SERIES RESULT</div>
+  <div class="end-title" id="se-title"></div>
+  <div class="end-sub"   id="se-sub"></div>
+  <div class="series-disp">
+    <div class="sd-side"><div class="sd-num" id="se-pscore"></div><div class="sd-label">나</div></div>
+    <div class="sd-sep">—</div>
+    <div class="sd-side"><div class="sd-num" id="se-ascore"></div><div class="sd-label">AI</div></div>
+  </div>
+  <div class="btn-row">
+    <button class="btn primary" onclick="resetGame()">🔄 처음부터</button>
+  </div>
+</div>
+</div>
+
+<script>
+// ═══════════════════════════════════════════════════════
+// DATA
+// ═══════════════════════════════════════════════════════
+
+const CHARS = {
+  c1:{ id:'c1', name:'하율',  grade:'C', hp:20, scissors:2, rock:1, paper:1, emoji:'🧒🏻', desc:'가위 강 / 바위·보 약' },
+  c2:{ id:'c2', name:'서준',  grade:'C', hp:20, scissors:1, rock:2, paper:1, emoji:'👦🏻', desc:'바위 강 / 가위·보 약' },
+  c3:{ id:'c3', name:'지아',  grade:'C', hp:20, scissors:1, rock:1, paper:2, emoji:'👧🏻', desc:'보 강 / 가위·바위 약' },
+  b1:{ id:'b1', name:'준희',  grade:'B', hp:26, scissors:3, rock:2, paper:1, emoji:'🧑🏻‍🦱', desc:'가위 강 / 바위 중 / 보 약' },
+  b2:{ id:'b2', name:'수진',  grade:'B', hp:26, scissors:1, rock:3, paper:2, emoji:'👩🏻', desc:'바위 강 / 보 중 / 가위 약' },
+  b3:{ id:'b3', name:'혜정',  grade:'B', hp:26, scissors:2, rock:1, paper:3, emoji:'👱🏻‍♀️', desc:'보 강 / 가위 중 / 바위 약' },
+  a1:{ id:'a1', name:'철수',  grade:'A', hp:32, scissors:4, rock:3, paper:2, emoji:'👨🏻', desc:'가위 강 / 바위 중 / 보 약' },
+  a2:{ id:'a2', name:'영희',  grade:'A', hp:32, scissors:2, rock:4, paper:3, emoji:'👩🏻‍🦱', desc:'바위 강 / 보 중 / 가위 약' },
+  a3:{ id:'a3', name:'민수',  grade:'A', hp:32, scissors:3, rock:2, paper:4, emoji:'🧔🏻‍♂️', desc:'보 강 / 가위 중 / 바위 약' },
+  s1:{ id:'s1', name:'용남',  grade:'S', hp:38, scissors:5, rock:4, paper:3, emoji:'👴🏻', desc:'가위 강 / 바위 중 / 보 약' },
+  s2:{ id:'s2', name:'춘삼',  grade:'S', hp:38, scissors:3, rock:5, paper:4, emoji:'🧓🏻', desc:'바위 강 / 보 중 / 가위 약' },
+  s3:{ id:'s3', name:'순자',  grade:'S', hp:38, scissors:4, rock:3, paper:5, emoji:'👵🏻', desc:'보 강 / 가위 중 / 바위 약' },
+};
+
+const GRADE_ORDER = ['C','B','A','S'];
+const GRADE_IDS   = { C:['c1','c2','c3'], B:['b1','b2','b3'], A:['a1','a2','a3'], S:['s1','s2','s3'] };
+const GRADE_COL   = { C:'var(--c)', B:'var(--b)', A:'var(--a)', S:'var(--s)' };
+const GRADE_INFO  = { C:{total:4,hp:20}, B:{total:6,hp:26}, A:{total:9,hp:32},  S:{total:12,hp:38} };
+
+const BEATS    = { scissors:'paper', rock:'scissors', paper:'rock' };
+const BEATS_BY = { scissors:'rock',  rock:'paper',    paper:'scissors' }; // what beats this move
+const MV_EMOJI = { scissors:'✌️', rock:'✊', paper:'🖐️' };
+const MV_KR    = { scissors:'가위', rock:'바위', paper:'보' };
+
+// ═══════════════════════════════════════════════════════
+// STATE
+// ═══════════════════════════════════════════════════════
+
+let G = {
+  diff: null,
+  pChar: null, aChar: null,
+  pHP: 0, aHP: 0,
+  pMaxHP: 0, aMaxHP: 0,
+  turn: 1,
+  history: [],
+  score: { p:0, a:0 },
+  gameNum: 1,
+  active: false,
+};
+
+// ═══════════════════════════════════════════════════════
+// UTILITIES
+// ═══════════════════════════════════════════════════════
+
+function show(id) {
+  document.querySelectorAll('.screen').forEach(s => s.hidden = true);
+  document.getElementById('screen-' + id).hidden = false;
 }
 
-// ── 메인 게임 ──────────────────────────────────────
-function App(){
-  const[phase,setPhase]=useState("setup");
-  const[board,setBoard]=useState(initBoard());
-  const[pStones,setPStones]=useState(null);
-  const[aStones,setAStones]=useState(null);
-  const[selected,setSelected]=useState("rock");
-  const[turn,setTurn]=useState("player");
-  const[turnPhase,setTurnPhase]=useState("placement"); // placement|action
-  const[turnsLeft,setTurnsLeft]=useState(48);
-  const[totalTurns,setTotalTurns]=useState(48);
-  const[logs,setLogs]=useState([]);
-  const[gameOver,setGameOver]=useState(false);
-  const[winner,setWinner]=useState(null);
-  const[lastPlaced,setLastPlaced]=useState(null);
-  const[aiThinking,setAiThinking]=useState(false);
-  const[combatSelect,setCombatSelect]=useState(null);
-  const[cooldown,setCooldown]=useState(null);
-  const[selUnit,setSelUnit]=useState(null); // 선택된 앞면 유닛 {row,col}
-  const[actionTargets,setActionTargets]=useState([]); // 행동 가능한 타겟 위치들
+function badge() {
+  const p = Math.min(2, G.score.p), a = Math.min(2, G.score.a);
+  return `<span class="sb-win">${'●'.repeat(p)}${'○'.repeat(2-p)}</span>`
+       + ` 나 | AI `
+       + `<span class="sb-lose">${'●'.repeat(a)}${'○'.repeat(2-a)}</span>`;
+}
 
-  const addLogs=nl=>setLogs(p=>[...nl,...p].slice(0,14));
+function gradeSpan(g) {
+  return `<span style="color:${GRADE_COL[g]};font-family:'JetBrains Mono',monospace;font-weight:700">${g}등급</span>`;
+}
 
-  const startGame=(playerDist)=>{
-    const aiDist=randomDist();
-    const tt=sumStones(playerDist)+sumStones(aiDist);
-    setPStones(playerDist);setAStones(aiDist);setTotalTurns(tt);setTurnsLeft(tt);setPhase("playing");
-  };
+function statStr(c) {
+  return [
+    `<span class="prev-stat">✌️ 가위 <b>${c.scissors}</b></span>`,
+    `<span class="prev-stat">✊ 바위 <b>${c.rock}</b></span>`,
+    `<span class="prev-stat">🖐️ 보 &nbsp;<b>${c.paper}</b></span>`,
+  ].join('');
+}
 
-  const checkEnd=useCallback((b,tl,ps,as)=>{
-    if(tl<=0||(sumStones(ps)===0&&sumStones(as)===0)){
-      const pc=countOnBoard(b,0),ac=countOnBoard(b,1);
-      setGameOver(true);setWinner(pc>ac?"player":ac>pc?"ai":"draw");return true;
-    }return false;
-  },[]);
+function setRpsDisabled(d) {
+  document.querySelectorAll('.rps-btn').forEach(b => b.disabled = d);
+}
 
-  // 플레이어 앞면 유닛의 행동 타겟 계산
-  const calcTargets=(b,r,c)=>{
-    const unit=b[r][c];if(!unit||!unit.revealed)return[];
-    if(unit.type==="rock"){
-      // 바위: 인접 빈칸(이동) + 인접 적 앞면(공격)
-      return DIRS.map(([dr,dc])=>{const nr=r+dr,nc=c+dc;if(nr<0||nr>=BOARD||nc<0||nc>=BOARD)return null;const cell=b[nr][nc];if(!cell)return{r:nr,c:nc,kind:"move"};if(cell.player!==0&&cell.revealed)return{r:nr,c:nc,kind:"attack"};return null;}).filter(Boolean);
-    }
-    if(unit.type==="paper"){
-      // 보: 인접 뒷면 돌(밀기)
-      return DIRS.map(([dr,dc])=>{const nr=r+dr,nc=c+dc;if(nr<0||nr>=BOARD||nc<0||nc>=BOARD)return null;const cell=b[nr][nc];if(cell&&!cell.revealed)return{r:nr,c:nc,kind:"push"};return null;}).filter(Boolean);
-    }
-    return[]; // 가위는 수동 행동 없음
-  };
+// ═══════════════════════════════════════════════════════
+// START
+// ═══════════════════════════════════════════════════════
 
-  // 앞면 유닛 선택
-  const handleUnitSelect=(r,c)=>{
-    const unit=board[r][c];
-    if(!unit||unit.player!==0||!unit.revealed)return;
-    if(unit.type==="scissors"){
-      // 가위는 행동 없음, 자동 스킵
-      addLogs([{text:"✂️ 가위는 자동 공격 전용 — 행동 건너뜀",result:"neutral"}]);
-      endActionPhase(board);return;
-    }
-    const targets=calcTargets(board,r,c);
-    if(targets.length===0){
-      addLogs([{text:`${EMOJI[unit.type]} 행동 가능한 타겟 없음 — 건너뜀`,result:"neutral"}]);
-      endActionPhase(board);return;
-    }
-    setSelUnit({row:r,col:c});setActionTargets(targets);
-  };
+function selectDiff(d) {
+  G.diff = d;
+  renderCharSelect();
+  show('char-select');
+}
 
-  // 행동 타겟 클릭
-  const handleTargetClick=(tr,tc)=>{
-    if(!selUnit)return;
-    const{row:ur,col:uc}=selUnit;
-    const unit=board[ur][uc];if(!unit)return;
-    const target=actionTargets.find(t=>t.r===tr&&t.c===tc);if(!target)return;
+// ═══════════════════════════════════════════════════════
+// CHAR SELECT
+// ═══════════════════════════════════════════════════════
 
-    let b=copyBoard(board);
+function renderCharSelect() {
+  document.getElementById('cs-gnum').textContent = G.gameNum;
+  document.getElementById('cs-badge').innerHTML  = badge();
 
-    if(target.kind==="move"){
-      // 바위 이동
-      b[tr][tc]=b[ur][uc];b[ur][uc]=null;
-      addLogs([{text:`🪨 바위 이동 (${ur},${uc})→(${tr},${tc})`,result:"neutral"}]);
-      // 이동 후 상대 가위 자동공격 체크
-      const{board:b2,logs:l2}=checkScissors(b,1);
-      b=b2;if(l2.length)addLogs(l2);
-    }else if(target.kind==="attack"){
-      // 바위 공격
-      const{board:b2,log}=faceUpCombat(b,ur,uc,tr,tc);
-      b=b2;if(log)addLogs([log]);
-    }else if(target.kind==="push"){
-      // 보 밀기
-      const{board:b2,logs:pl}=getPushResult(b,ur,uc,tr,tc);
-      b=b2;if(pl.length)addLogs(pl);
-      // 밀기 후 새 앞면 유닛 체크 (상대 가위)
-      const{board:b3,logs:l3}=checkScissors(b,1);
-      b=b3;if(l3.length)addLogs(l3);
-    }
+  const grid = document.getElementById('char-grid');
+  grid.innerHTML = '';
 
-    setSelUnit(null);setActionTargets([]);
-    endActionPhase(b);
-  };
+  for (const gr of GRADE_ORDER) {
+    const col  = GRADE_COL[gr];
+    const info = GRADE_INFO[gr];
+    const sec  = document.createElement('div');
+    sec.className = 'grade-section';
+    sec.innerHTML = `
+      <div class="grade-header">
+        <div class="grade-tag" style="color:${col}">${gr}</div>
+        <div class="grade-meta">HP ${info.hp} &nbsp;|&nbsp; 합계 ${info.total}</div>
+      </div>
+      <div class="char-grid" id="cg-${gr}"></div>
+    `;
+    grid.appendChild(sec);
 
-  const endActionPhase=(b)=>{
-    setBoard(b);setTurn("ai");setTurnPhase("placement");
-  };
-
-  const skipAction=()=>{
-    setSelUnit(null);setActionTargets([]);
-    endActionPhase(board);
-  };
-
-  // ── 배치 단계 클릭 ──────────────────────────────
-  const handlePlacementClick=(row,col)=>{
-    if(combatSelect){handleCombatPick(row,col);return;}
-    if(turn!=="player"||turnPhase!=="placement"||gameOver||board[row][col]||!pStones)return;
-    if(pStones[selected]<=0)return;
-    if(cooldown?.for==="player"){const bl=getBlockedSet(cooldown.cells);if(bl.has(`${row},${col}`))return;}
-
-    const nb=copyBoard(board);
-    nb[row][col]={player:0,type:selected,revealed:false};
-    const nps={...pStones,[selected]:pStones[selected]-1};
-    setPStones(nps);setLastPlaced([row,col]);setCooldown(null);
-
-    // 인접 뒷면 적만 찾기
-    const fdEnemies=[];
-    for(const[dr,dc]of DIRS){
-      const nr=row+dr,nc=col+dc;if(nr<0||nr>=BOARD||nc<0||nc>=BOARD)continue;
-      const cell=nb[nr][nc];
-      if(cell&&cell.player!==0&&!cell.revealed)fdEnemies.push([nr,nc]);
-    }
-    const nt=turnsLeft-1;setTurnsLeft(nt);
-
-    if(fdEnemies.length===0){
-      setBoard(nb);
-      if(!checkEnd(nb,nt,nps,aStones))setTurnPhase("action");
-    }else if(fdEnemies.length===1){
-      const{board:resolved,log,alive}=singleCombat(nb,row,col,fdEnemies[0][0],fdEnemies[0][1]);
-      if(log)addLogs([log]);
-      let b2=resolved;
-      // 새 앞면 유닛에 대해 상대 가위 자동 공격
-      const{board:b3,logs:l3}=checkScissors(b2,1);
-      b2=b3;if(l3.length)addLogs(l3);
-      if(alive&&b2[row][col])setCooldown({cells:[[row,col]],for:"ai"});
-      setBoard(b2);
-      if(!checkEnd(b2,nt,nps,aStones))setTurnPhase("action");
-    }else{
-      // 복수 전투 선택
-      setBoard(nb);
-      setCombatSelect({row,col,remaining:fdEnemies,nps});
-    }
-  };
-
-  // 복수 전투 선택
-  const handleCombatPick=(er,ec)=>{
-    if(!combatSelect)return;
-    const{row,col,remaining,nps}=combatSelect;
-    if(!remaining.some(([r,c])=>r===er&&c===ec))return;
-    const{board:nb,log,alive}=singleCombat(board,row,col,er,ec);
-    if(log)addLogs([log]);
-    const newRem=remaining.filter(([r,c])=>!(r===er&&c===ec));
-    if(!alive||newRem.length===0){
-      let b2=nb;
-      const{board:b3,logs:l3}=checkScissors(b2,1);
-      b2=b3;if(l3.length)addLogs(l3);
-      if(alive&&b2[row][col])setCooldown({cells:[[row,col]],for:"ai"});
-      setBoard(b2);setCombatSelect(null);
-      if(!checkEnd(b2,turnsLeft,nps,aStones))setTurnPhase("action");
-    }else{setBoard(nb);setCombatSelect({row,col,remaining:newRem,nps});}
-  };
-
-  // 메인 클릭 핸들러
-  const handleClick=(r,c)=>{
-    if(gameOver||turn!=="player")return;
-    if(turnPhase==="placement"){handlePlacementClick(r,c);}
-    else if(turnPhase==="action"){
-      if(selUnit){handleTargetClick(r,c);}
-      else{handleUnitSelect(r,c);}
-    }
-  };
-
-  // ── AI 턴 ──────────────────────────────────────
-  useEffect(()=>{
-    if(turn!=="ai"||gameOver||!aStones)return;
-    setAiThinking(true);
-    const timer=setTimeout(()=>{
-      // AI 배치 단계
-      const blockedSet=cooldown?.for==="ai"?getBlockedSet(cooldown.cells):new Set();
-      setCooldown(null);
-      const empty=[];
-      for(let r=0;r<BOARD;r++)for(let c=0;c<BOARD;c++)if(!board[r][c]&&!blockedSet.has(`${r},${c}`))empty.push([r,c]);
-      const avail=TYPES.filter(t=>aStones[t]>0);
-      if(!empty.length||!avail.length){setAiThinking(false);setTurn("player");setTurnPhase("placement");return;}
-
-      // AI 배치 선택
-      let move=null;
-      outer:for(const[r,c]of empty){
-        for(const[dr,dc]of DIRS){const nr=r+dr,nc=c+dc;if(nr<0||nr>=BOARD||nc<0||nc>=BOARD)continue;const nb=board[nr][nc];if(!nb||nb.player!==0||!nb.revealed)continue;for(const type of avail){if(rps(type,nb.type)===1){move={r,c,type};break outer;}}}
-      }
-      if(!move){
-        const safe=empty.filter(([r,c])=>{for(const[dr,dc]of DIRS){const nr=r+dr,nc=c+dc;if(nr<0||nr>=BOARD||nc<0||nc>=BOARD)continue;const nb=board[nr][nc];if(nb?.player===0&&nb.revealed&&avail[0]&&rps(avail[0],nb.type)===-1)return false;}return true;});
-        const pool=safe.length?safe:empty;const[r,c]=pool[Math.floor(Math.random()*pool.length)];const type=avail[Math.floor(Math.random()*avail.length)];move={r,c,type};
-      }
-
-      const nb=copyBoard(board);
-      nb[move.r][move.c]={player:1,type:move.type,revealed:false};
-      const{board:afterPlace,logs:pl,survived}=resolveAllDirect(nb,move.r,move.c,1);
-      addLogs(pl);
-      let b2=afterPlace;
-      // 새 앞면 유닛에 플레이어 가위 반응
-      const{board:b3,logs:l3}=checkScissors(b2,0);
-      b2=b3;if(l3.length)addLogs(l3);
-      if(survived&&b2[move.r][move.c])setCooldown({cells:[[move.r,move.c]],for:"player"});
-      const nas={...aStones,[move.type]:aStones[move.type]-1};
-      setAStones(nas);setLastPlaced([move.r,move.c]);
-      const nt=turnsLeft-1;setTurnsLeft(nt);
-
-      if(checkEnd(b2,nt,pStones,nas)){setBoard(b2);setAiThinking(false);return;}
-
-      // AI 행동 단계
-      const aiUnits=[];
-      for(let r=0;r<BOARD;r++)for(let c=0;c<BOARD;c++){const u=b2[r][c];if(u&&u.player===1&&u.revealed)aiUnits.push({r,c,type:u.type});}
-
-      let b4=copyBoard(b2);
-      if(aiUnits.length>0){
-        // 행동 가능한 유닛 찾기
-        let acted=false;
-        // 바위 우선: 인접 적 앞면 공격
-        for(const{r,c,type}of aiUnits){
-          if(type!=="rock")continue;
-          for(const[dr,dc]of DIRS){const nr=r+dr,nc=c+dc;if(nr<0||nr>=BOARD||nc<0||nc>=BOARD)continue;const t=b4[nr][nc];if(t&&t.player===0&&t.revealed){const{board:nb2,log}=faceUpCombat(b4,r,c,nr,nc);b4=nb2;if(log)addLogs([log]);const{board:b5,logs:l5}=checkScissors(b4,0);b4=b5;if(l5.length)addLogs(l5);acted=true;break;}}
-          if(acted)break;
-        }
-        if(!acted){
-          // 바위 이동: 빈칸으로 이동
-          for(const{r,c,type}of aiUnits){
-            if(type!=="rock")continue;
-            // 플레이어 앞면 유닛 방향으로 이동
-            let bestDir=null,bestDist=Infinity;
-            for(let pr=0;pr<BOARD;pr++)for(let pc=0;pc<BOARD;pc++){const pu=b4[pr][pc];if(!pu||pu.player!==0||!pu.revealed)continue;const d=Math.abs(pr-r)+Math.abs(pc-c);if(d<bestDist){bestDist=d;bestDir=[pr-r>0?1:pr-r<0?-1:0,pc-c>0?1:pc-c<0?-1:0];}}
-            if(bestDir){
-              // 시도: 최적 방향 이동
-              for(const[dr,dc]of DIRS){
-                const nr=r+dr,nc=c+dc;if(nr<0||nr>=BOARD||nc<0||nc>=BOARD)continue;
-                if(!b4[nr][nc]){b4[nr][nc]=b4[r][c];b4[r][c]=null;addLogs([{text:`🪨 AI 바위 이동`,result:"neutral"}]);const{board:b5,logs:l5}=checkScissors(b4,0);b4=b5;if(l5.length)addLogs(l5);acted=true;break;}
-              }
-            }
-            if(acted)break;
-          }
-        }
-        if(!acted){
-          // 보 밀기: 인접 적 뒷면 돌 밀기
-          for(const{r,c,type}of aiUnits){
-            if(type!=="paper")continue;
-            for(const[dr,dc]of DIRS){const nr=r+dr,nc=c+dc;if(nr<0||nr>=BOARD||nc<0||nc>=BOARD)continue;const t=b4[nr][nc];if(t&&!t.revealed&&t.player===0){const{board:nb2,logs:pl2}=getPushResult(b4,r,c,nr,nc);b4=nb2;addLogs(pl2);const{board:b5,logs:l5}=checkScissors(b4,0);b4=b5;if(l5.length)addLogs(l5);acted=true;break;}}
-            if(acted)break;
-          }
-        }
-      }
-
-      setBoard(b4);setAiThinking(false);setTurn("player");setTurnPhase("placement");
-    },800);
-    return()=>clearTimeout(timer);
-  },[turn,board,aStones,pStones,turnsLeft,gameOver,checkEnd,cooldown]);
-
-  const reset=()=>{
-    setBoard(initBoard());setPStones(null);setAStones(null);setSelected("rock");
-    setTurn("player");setTurnPhase("placement");setTurnsLeft(48);setTotalTurns(48);
-    setLogs([]);setGameOver(false);setWinner(null);setLastPlaced(null);
-    setAiThinking(false);setCombatSelect(null);setCooldown(null);
-    setSelUnit(null);setActionTargets([]);setPhase("setup");
-  };
-
-  if(phase==="setup")return <SetupScreen onStart={startGame}/>;
-
-  const pc=countOnBoard(board,0),ac=countOnBoard(board,1);
-  const pTotal=pStones?sumStones(pStones):0,aTotal=aStones?sumStones(aStones):0;
-  const progress=totalTurns>0?Math.round(((totalTurns-turnsLeft)/totalTurns)*100):0;
-  const isCombatSel=!!combatSelect;
-  const playerBlockedSet=cooldown?.for==="player"?getBlockedSet(cooldown.cells):new Set();
-  const cooldownCellSet=new Set((cooldown?.cells||[]).map(([r,c])=>`${r},${c}`));
-  const cellSize=Math.min(40,Math.floor((Math.min(window.innerWidth,400)-28)/BOARD));
-
-  // 가위 사정거리 표시 (선택된 유닛이 가위일 때)
-  const scRangeSet=new Set();
-  if(turnPhase==="action"&&!selUnit){
-    for(let r=0;r<BOARD;r++)for(let c=0;c<BOARD;c++){
-      const u=board[r][c];if(!u||u.player!==0||!u.revealed||u.type!=="scissors")continue;
-      for(const[dr,dc]of SC_RANGE){const nr=r+dr,nc=c+dc;if(nr>=0&&nr<BOARD&&nc>=0&&nc<BOARD)scRangeSet.add(`${nr},${nc}`);}
+    const cg = sec.querySelector(`#cg-${gr}`);
+    for (const id of GRADE_IDS[gr]) {
+      const c = CHARS[id];
+      const card = document.createElement('div');
+      card.className = 'char-card';
+      card.onclick = () => pickChar(id);
+      card.innerHTML = `
+        <div class="cc-emoji">${c.emoji}</div>
+        <div class="cc-name">${c.name}</div>
+        ${miniStat('✌️가위', c.scissors, 'sc-bar')}
+        ${miniStat('✊바위', c.rock,     'rk-bar')}
+        ${miniStat('🖐️보',  c.paper,    'pp-bar')}
+      `;
+      cg.appendChild(card);
     }
   }
-
-  const phaseLabel=turnPhase==="placement"?"📍 뒷면 배치":"⚔ 앞면 유닛 행동";
-  const phaseColor=turnPhase==="placement"?"#5dff5d":"#ffe066";
-
-  return(
-    <div style={{fontFamily:"system-ui,sans-serif",background:"#0d0d1a",minHeight:"100vh",color:"#e0e0f0",padding:"10px",display:"flex",flexDirection:"column",alignItems:"center"}}>
-      <h1 style={{fontSize:"14px",fontWeight:800,color:"#b8a4ff",margin:"0 0 6px"}}>⚔️ 한중일 전략대전 v7</h1>
-
-      {/* 스코어 */}
-      <div style={{width:"100%",maxWidth:"360px",background:"#13132a",borderRadius:"12px",padding:"8px 14px",marginBottom:"7px",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
-        <div style={{textAlign:"center"}}>
-          <div style={{fontSize:"10px",color:"#6aaeff",fontWeight:700}}>🔵 나</div>
-          <div style={{fontSize:"26px",fontWeight:900,color:"#6aaeff",lineHeight:1.1}}>{pc}</div>
-          {pStones&&<div style={{fontSize:"9px",color:"#335577"}}>{EMOJI.rock}{pStones.rock} {EMOJI.scissors}{pStones.scissors} {EMOJI.paper}{pStones.paper}</div>}
-          <div style={{fontSize:"9px",color:"#334"}}>잔여 {pTotal}</div>
-        </div>
-        <div style={{textAlign:"center"}}>
-          <div style={{fontSize:"17px",fontWeight:800,color:turnsLeft<=10?"#ff6b6b":"#ccc"}}>{turnsLeft}</div>
-          <div style={{fontSize:"7px",color:"#444",marginBottom:"2px"}}>남은 턴</div>
-          <div style={{width:"54px",height:"3px",background:"#1e1e30",borderRadius:"2px",margin:"0 auto 3px"}}>
-            <div style={{width:`${progress}%`,height:"100%",background:"#b8a4ff",borderRadius:"2px",transition:"width 0.3s"}}/>
-          </div>
-          <div style={{fontSize:"9px",fontWeight:700,padding:"2px 6px",borderRadius:"20px",background:aiThinking?"#281616":turn==="player"?"#1a2010":"#281616",color:aiThinking?"#ff7070":turn==="player"?phaseColor:"#ff7070"}}>
-            {aiThinking?"AI…":turn==="player"?phaseLabel:"AI 차례"}
-          </div>
-        </div>
-        <div style={{textAlign:"center"}}>
-          <div style={{fontSize:"10px",color:"#ff7070",fontWeight:700}}>🔴 AI</div>
-          <div style={{fontSize:"26px",fontWeight:900,color:"#ff7070",lineHeight:1.1}}>{ac}</div>
-          <div style={{fontSize:"9px",color:"#442222"}}>??? ??? ???</div>
-          <div style={{fontSize:"9px",color:"#334"}}>잔여 {aTotal}</div>
-        </div>
-      </div>
-
-      {/* 배너 */}
-      {isCombatSel&&(
-        <div style={{width:"100%",maxWidth:"360px",background:"#2a2000",border:"1px solid #ffe066",borderRadius:"9px",padding:"6px 12px",marginBottom:"7px",textAlign:"center"}}>
-          <div style={{fontSize:"11px",color:"#ffe066",fontWeight:700}}>⚔ 먼저 싸울 적을 선택하세요</div>
-          <div style={{fontSize:"9px",color:"#aa9933",marginTop:"1px"}}>반짝 적 탭 · 선택 순간 공개 · 남은 전투 {combatSelect.remaining.length}개</div>
-        </div>
-      )}
-      {!isCombatSel&&cooldown?.for==="player"&&turn==="player"&&(
-        <div style={{width:"100%",maxWidth:"360px",background:"#2a0a0a",border:"1px solid #ff4444",borderRadius:"9px",padding:"6px 12px",marginBottom:"7px",textAlign:"center"}}>
-          <div style={{fontSize:"10px",color:"#ff6666",fontWeight:700}}>🛡 빨간 칸 배치 불가 (이번 턴)</div>
-        </div>
-      )}
-      {!isCombatSel&&turn==="player"&&turnPhase==="action"&&(
-        <div style={{width:"100%",maxWidth:"360px",background:"#1a2010",border:"1px solid #ffe066",borderRadius:"9px",padding:"6px 12px",marginBottom:"7px",textAlign:"center"}}>
-          <div style={{fontSize:"10px",color:"#ffe066",fontWeight:700}}>
-            {selUnit?`${EMOJI[board[selUnit.row][selUnit.col]?.type||"rock"]} 타겟을 선택하세요`:"앞면 유닛을 선택하거나 건너뛰세요"}
-          </div>
-        </div>
-      )}
-
-      {/* 보드 */}
-      <div style={{display:"grid",gridTemplateColumns:`repeat(${BOARD},1fr)`,gap:"3px",marginBottom:"8px",width:"100%",maxWidth:"360px"}}>
-        {board.map((row,r)=>board[r].map((cell,c)=>{
-          const isLast=lastPlaced?.[0]===r&&lastPlaced?.[1]===c;
-          const isCombatTarget=isCombatSel&&combatSelect.remaining.some(([er,ec])=>er===r&&ec===c);
-          const isSelUnitCell=selUnit?.row===r&&selUnit?.col===c;
-          const isActionTarget=actionTargets.some(t=>t.r===r&&t.c===c);
-          const actionKind=actionTargets.find(t=>t.r===r&&t.c===c)?.kind;
-          const isCooldownCell=cooldownCellSet.has(`${r},${c}`);
-          const isBlocked=playerBlockedSet.has(`${r},${c}`)&&!cell;
-          const isScRange=scRangeSet.has(`${r},${c}`)&&!cell;
-          const isSelectableUnit=turn==="player"&&turnPhase==="action"&&!selUnit&&cell?.player===0&&cell?.revealed&&cell?.type!=="scissors";
-
-          let bg="#181830",border="1px solid #222244";
-          if(cell?.player===0&&!cell.revealed){bg="#112244";border="1px solid #2255aa";}
-          if(cell?.player===1&&!cell.revealed){bg="#2a1111";border="1px solid #aa2222";}
-          if(cell?.player===0&&cell.revealed){bg="#0a1f3d";border="2px solid #6aaeff";}
-          if(cell?.player===1&&cell.revealed){bg="#3d0a0a";border="2px solid #ff7070";}
-          if(isLast)border="2px solid #ffe066";
-          if(isCombatTarget){bg="#3a1a00";border="2px solid #ffe066";}
-          if(isSelUnitCell){bg="#1a3a00";border="2px solid #5dff5d";}
-          if(isActionTarget&&actionKind==="move"){bg="#0a2a0a";border="2px solid #44ff44";}
-          if(isActionTarget&&actionKind==="attack"){bg="#3a1000";border="2px solid #ff8800";}
-          if(isActionTarget&&actionKind==="push"){bg="#002a2a";border="2px solid #44ffff";}
-          if(isCooldownCell&&cell){border="2px solid #ff4444";}
-          if(isBlocked){bg="#3a0808";border="1px solid #ff3333";}
-          if(isScRange){bg="#1a1a00";border="1px dashed #ffe06666";}
-          if(isSelectableUnit){border="2px solid #ffe066";}
-
-          const canClick=
-            (turn==="player"&&turnPhase==="placement"&&!cell&&!isBlocked&&!isCombatSel)||
-            isCombatTarget||
-            (turn==="player"&&turnPhase==="action"&&!selUnit&&cell?.player===0&&cell?.revealed)||
-            (turn==="player"&&turnPhase==="action"&&selUnit&&isActionTarget);
-
-          return(
-            <div key={`${r}-${c}`} onClick={()=>handleClick(r,c)}
-              style={{width:`${cellSize}px`,height:`${cellSize}px`,background:bg,border,borderRadius:"5px",display:"flex",alignItems:"center",justifyContent:"center",cursor:canClick?"pointer":isBlocked?"not-allowed":"default",fontSize:cell?.revealed?`${cellSize*0.45}px`:`${cellSize*0.34}px`,boxShadow:isCombatTarget||isActionTarget?"0 0 8px #ffe06688":isSelUnitCell?"0 0 8px #5dff5d88":isCooldownCell&&cell?"0 0 6px #ff444466":"none"}}>
-              {isBlocked?<span style={{fontSize:"9px",color:"#ff3333",opacity:0.7}}>✕</span>
-              :isScRange?<span style={{fontSize:"8px",color:"#ffe06644"}}>✦</span>
-              :cell?(cell.revealed?EMOJI[cell.type]:<span style={{color:cell.player===0?"#5599cc":"#cc4444"}}>●</span>):""}
-            </div>
-          );
-        }))}
-      </div>
-
-      {/* 배치 단계: 돌 선택 */}
-      {!gameOver&&turn==="player"&&turnPhase==="placement"&&!isCombatSel&&pStones&&(
-        <div style={{display:"flex",gap:"7px",marginBottom:"8px"}}>
-          {TYPES.map(type=>(
-            <button key={type} onClick={()=>setSelected(type)} disabled={pStones[type]<=0}
-              style={{padding:"7px 10px",borderRadius:"9px",fontSize:"12px",fontWeight:700,cursor:pStones[type]>0?"pointer":"not-allowed",border:selected===type?"2px solid #b8a4ff":"2px solid transparent",background:selected===type?"#221a44":"#151525",color:pStones[type]<=0?"#333":"#e0e0f0",opacity:pStones[type]<=0?0.4:1,transform:selected===type?"scale(1.05)":"scale(1)"}}>
-              {EMOJI[type]} {LABEL[type]}<br/><span style={{fontSize:"10px",color:selected===type?"#9988cc":"#555"}}>({pStones[type]})</span>
-            </button>
-          ))}
-        </div>
-      )}
-
-      {/* 행동 단계: 건너뛰기 */}
-      {!gameOver&&turn==="player"&&turnPhase==="action"&&(
-        <button onClick={skipAction}
-          style={{padding:"8px 20px",borderRadius:"9px",fontSize:"12px",fontWeight:700,border:"1px solid #444",background:"#151525",color:"#888",cursor:"pointer",marginBottom:"8px"}}>
-          행동 건너뛰기 →
-        </button>
-      )}
-
-      {/* 게임 오버 */}
-      {gameOver&&(
-        <div style={{background:"#13132a",borderRadius:"14px",padding:"12px 20px",textAlign:"center",marginBottom:"8px",border:`2px solid ${winner==="player"?"#5dff5d":winner==="ai"?"#ff6b6b":"#ffe066"}`}}>
-          <div style={{fontSize:"22px",marginBottom:"4px"}}>{winner==="player"?"🏆 승리!":winner==="ai"?"💀 패배...":"🤝 무승부"}</div>
-          <div style={{fontSize:"12px",color:"#666",marginBottom:"10px"}}>나 {pc}개 · AI {ac}개</div>
-          <button onClick={reset} style={{background:"#b8a4ff",color:"#0d0d1a",fontWeight:800,border:"none",borderRadius:"8px",padding:"8px 18px",cursor:"pointer",fontSize:"13px"}}>처음으로</button>
-        </div>
-      )}
-
-      {/* 범례 */}
-      <div style={{fontSize:"9px",color:"#333",marginBottom:"6px",textAlign:"center",lineHeight:1.8}}>
-        🪨이동·공격 <span style={{color:"#44ff44"}}>■</span>이동 <span style={{color:"#ff8800"}}>■</span>공격 <span style={{color:"#44ffff"}}>■</span>밀기대상<br/>
-        ✦ 가위 사정거리 · 🪨>✂️>📄>🪨
-      </div>
-
-      {/* 전투 로그 */}
-      <div style={{width:"100%",maxWidth:"360px",background:"#0f0f20",borderRadius:"10px",padding:"8px 10px"}}>
-        <div style={{fontSize:"9px",color:"#333",fontWeight:700,marginBottom:"4px"}}>⚔ 전투 로그</div>
-        {logs.length===0
-          ?<div style={{fontSize:"9px",color:"#222"}}>전투 발생 시 표시됩니다</div>
-          :logs.map((log,i)=>(
-            <div key={i} style={{fontSize:"9px",padding:"2px 0",borderBottom:"1px solid #181830",
-              color:(!log.isAI&&log.result==="win")||(log.isAI&&log.result==="lose")?"#6aaeff"
-                :(!log.isAI&&log.result==="lose")||(log.isAI&&log.result==="win")?"#ff7070"
-                :log.result==="neutral"?"#666":"#555"}}>
-              {log.isAI?"🔴 ":"🔵 "}{log.text}
-            </div>
-          ))
-        }
-      </div>
-      <div style={{fontSize:"8px",color:"#1e1e2e",marginTop:"6px"}}>v7 · 8×8 · 총 {totalTurns}턴</div>
-    </div>
-  );
 }
 
-ReactDOM.createRoot(document.getElementById("root")).render(<App/>);
+function miniStat(label, val, cls) {
+  const pct = (val / 5) * 100;
+  return `
+    <div class="mini-stat">
+      <div class="ms-label"><span>${label}</span><span>${val}</span></div>
+      <div class="ms-bar"><div class="ms-fill ${cls}" style="width:${pct}%"></div></div>
+    </div>`;
+}
+
+function pickChar(id) {
+  G.pChar = CHARS[id];
+  const aiGradePool = {
+    S: ['S','A'],
+    A: ['S','A','B'],
+    B: ['A','B','C'],
+    C: ['B','C'],
+  }[G.pChar.grade];
+  const aiPool = Object.values(CHARS).filter(c => aiGradePool.includes(c.grade));
+  G.aChar = aiPool[Math.floor(Math.random() * aiPool.length)];
+  renderPreview();
+  show('preview');
+}
+
+// ═══════════════════════════════════════════════════════
+// PREVIEW
+// ═══════════════════════════════════════════════════════
+
+function renderPreview() {
+  const { pChar, aChar, gameNum } = G;
+  document.getElementById('pv-gnum').textContent = gameNum;
+  document.getElementById('pv-badge').innerHTML  = badge();
+
+  document.getElementById('pv-p-emoji').textContent = pChar.emoji;
+  document.getElementById('pv-p-grade').innerHTML   = gradeSpan(pChar.grade);
+  document.getElementById('pv-p-name').textContent  = pChar.name;
+  document.getElementById('pv-p-hp').textContent    = `HP ${pChar.hp}`;
+  document.getElementById('pv-p-stats').innerHTML   = statStr(pChar);
+
+  document.getElementById('pv-a-emoji').textContent = aChar.emoji;
+  document.getElementById('pv-a-grade').innerHTML   = gradeSpan(aChar.grade);
+  document.getElementById('pv-a-name').textContent  = aChar.name;
+  document.getElementById('pv-a-hp').textContent    = `HP ${aChar.hp}`;
+  document.getElementById('pv-a-stats').innerHTML   = statStr(aChar);
+}
+
+// ═══════════════════════════════════════════════════════
+// BATTLE START
+// ═══════════════════════════════════════════════════════
+
+function startBattle() {
+  G.pHP = G.pMaxHP = G.pChar.hp;
+  G.aHP = G.aMaxHP = G.aChar.hp;
+  G.turn    = 1;
+  G.history = [];
+  G.active  = true;
+  renderBattle();
+  show('battle');
+}
+
+function renderBattle() {
+  const { pChar, aChar } = G;
+  document.getElementById('bt-badge').innerHTML = badge();
+  document.getElementById('bt-turn').textContent = G.turn;
+
+  // Left fighter (player)
+  document.getElementById('bt-p-emoji').textContent = pChar.emoji;
+  document.getElementById('bt-p-name').textContent  = pChar.name;
+  document.getElementById('bt-p-grade').innerHTML   = gradeSpan(pChar.grade);
+  document.getElementById('bt-p-sc').textContent    = `✌️${pChar.scissors}`;
+  document.getElementById('bt-p-rk').textContent    = `✊${pChar.rock}`;
+  document.getElementById('bt-p-pp').textContent    = `🖐️${pChar.paper}`;
+
+  // Right fighter (AI)
+  document.getElementById('bt-a-emoji').textContent = aChar.emoji;
+  document.getElementById('bt-a-name').textContent  = aChar.name;
+  document.getElementById('bt-a-grade').innerHTML   = gradeSpan(aChar.grade);
+  document.getElementById('bt-a-sc').textContent    = `✌️${aChar.scissors}`;
+  document.getElementById('bt-a-rk').textContent    = `✊${aChar.rock}`;
+  document.getElementById('bt-a-pp').textContent    = `🖐️${aChar.paper}`;
+
+  // ATK labels on buttons
+  document.getElementById('btn-sc').textContent = `ATK ${pChar.scissors}`;
+  document.getElementById('btn-rk').textContent = `ATK ${pChar.rock}`;
+  document.getElementById('btn-pp').textContent = `ATK ${pChar.paper}`;
+
+  // Result + log
+  document.getElementById('bt-result').textContent = '패를 선택하세요';
+  document.getElementById('bt-result').className   = 'result-msg idle';
+  document.getElementById('log-body').innerHTML    = '<div class="log-row" style="color:var(--muted)">— 아직 기록 없음 —</div>';
+
+  updateHP();
+  setRpsDisabled(false);
+}
+
+function updateHP() {
+  const setBar = (barId, txtId, cur, max) => {
+    const pct = Math.max(0, (cur / max) * 100);
+    document.getElementById(txtId).textContent = `${Math.max(0,cur)} / ${max}`;
+    const bar = document.getElementById(barId);
+    bar.style.width = pct + '%';
+    bar.className = 'hp-fill' + (pct <= 25 ? ' low' : pct <= 50 ? ' med' : '');
+  };
+  setBar('bt-p-hp-bar','bt-p-hp-txt', G.pHP, G.pMaxHP);
+  setBar('bt-a-hp-bar','bt-a-hp-txt', G.aHP, G.aMaxHP);
+}
+
+// ═══════════════════════════════════════════════════════
+// AI LOGIC
+// ═══════════════════════════════════════════════════════
+
+function aiPick() {
+  const moves = ['scissors','rock','paper'];
+  const rnd   = () => moves[Math.floor(Math.random() * 3)];
+  const { diff, aChar, pChar, history } = G;
+
+  if (diff === 'easy') return rnd();
+
+  if (diff === 'normal') {
+    // Predict player's likely move
+    let pred;
+    const len = history.length;
+    if (len >= 2 && history[len-1].pm === history[len-2].pm) {
+      pred = history[len-1].pm; // player repeating → counter it
+    } else if (len >= 1 && Math.random() < 0.4) {
+      pred = history[len-1].pm;
+    } else {
+      // guess player plays highest-stat move
+      pred = ['scissors','rock','paper'].reduce((a,b) => pChar[a]>=pChar[b]?a:b);
+    }
+    return Math.random() < 0.6 ? BEATS_BY[pred] : rnd();
+  }
+
+  if (diff === 'hard') {
+    // Frequency analysis (seed 1 to avoid cold-start bias)
+    const freq = { scissors:1, rock:1, paper:1 };
+    history.forEach(h => freq[h.pm] += 2);
+    const pred = Object.keys(freq).reduce((a,b) => freq[a]>=freq[b]?a:b);
+    const counter  = BEATS_BY[pred];
+    const bestAtk  = ['scissors','rock','paper'].reduce((a,b) => aChar[a]>=aChar[b]?a:b);
+    return Math.random() < 0.65 ? counter : bestAtk;
+  }
+
+  return rnd();
+}
+
+// ═══════════════════════════════════════════════════════
+// PLAY ROUND
+// ═══════════════════════════════════════════════════════
+
+function playRound(pm) {
+  if (!G.active) return;
+  setRpsDisabled(true);
+
+  const am = aiPick();
+  let result, pdmg = 0, admg = 0;
+
+  if (pm === am) {
+    result = 'draw';
+  } else if (BEATS[pm] === am) {
+    result = 'win';
+    admg   = G.pChar[pm];
+    G.aHP  = Math.max(0, G.aHP - admg);
+  } else {
+    result = 'lose';
+    pdmg   = G.aChar[am];
+    G.pHP  = Math.max(0, G.pHP - pdmg);
+  }
+
+  const turnNum = G.turn;
+  G.history.push({ pm, am, result, pdmg, admg, turn: turnNum });
+  G.turn++;
+
+  // Update HP + turn counter
+  updateHP();
+  document.getElementById('bt-turn').textContent = G.turn;
+
+  // Result message
+  const el = document.getElementById('bt-result');
+  const msg = result === 'win'
+    ? `${MV_EMOJI[pm]}${MV_KR[pm]} vs ${MV_EMOJI[am]}${MV_KR[am]} — 승리! AI -${admg}HP`
+    : result === 'lose'
+    ? `${MV_EMOJI[pm]}${MV_KR[pm]} vs ${MV_EMOJI[am]}${MV_KR[am]} — 패배! 나 -${pdmg}HP`
+    : `${MV_EMOJI[pm]}${MV_KR[pm]} vs ${MV_EMOJI[am]}${MV_KR[am]} — 비겼습니다`;
+  el.textContent = msg;
+  el.className   = `result-msg ${result}`;
+
+  // Battle log (newest first)
+  const logEl = document.getElementById('log-body');
+  logEl.innerHTML = '';
+  for (const h of [...G.history].reverse()) {
+    const cls  = h.result === 'win' ? 'log-win' : h.result === 'lose' ? 'log-lose' : 'log-draw';
+    const info = h.result === 'win' ? `승리 AI-${h.admg}HP`
+               : h.result === 'lose' ? `패배 나-${h.pdmg}HP` : '무';
+    const div = document.createElement('div');
+    div.className = 'log-row';
+    div.innerHTML = `T${h.turn}: ${MV_EMOJI[h.pm]}${MV_KR[h.pm]} vs ${MV_EMOJI[h.am]}${MV_KR[h.am]} <span class="${cls}">→ ${info}</span>`;
+    logEl.appendChild(div);
+  }
+
+  // Check end conditions with a brief visual pause
+  setTimeout(() => {
+    const hpEnd   = G.pHP <= 0 || G.aHP <= 0;
+    const turnEnd = G.turn > 10;
+    if (hpEnd || turnEnd) { G.active = false; endBattle(turnEnd && !hpEnd); }
+    else setRpsDisabled(false);
+  }, 600);
+}
+
+// ═══════════════════════════════════════════════════════
+// BATTLE / SERIES END
+// ═══════════════════════════════════════════════════════
+
+function endBattle(byTurn) {
+  const { pHP, aHP } = G;
+
+  let winner;
+  if (pHP <= 0 && aHP <= 0) winner = 'draw';
+  else if (aHP <= 0) winner = 'p';
+  else if (pHP <= 0) winner = 'a';
+  else winner = pHP > aHP ? 'p' : aHP > pHP ? 'a' : 'draw'; // turn limit
+
+  if (winner === 'p') G.score.p++;
+  else if (winner === 'a') G.score.a++;
+
+  // Check series winner BEFORE incrementing gameNum
+  let seriesWinner = null;
+  if      (G.score.p >= 2) seriesWinner = 'p';
+  else if (G.score.a >= 2) seriesWinner = 'a';
+  else if (G.gameNum >= 3) {
+    seriesWinner = G.score.p > G.score.a ? 'p'
+                 : G.score.a > G.score.p ? 'a' : 'draw';
+  }
+
+  const gameJustPlayed = G.gameNum;
+  G.gameNum++;
+
+  renderGameEnd(winner, seriesWinner, gameJustPlayed, byTurn);
+  show('game-end');
+}
+
+function renderGameEnd(winner, seriesWinner, gn, byTurn) {
+  const icons  = { p:'🎉', a:'😢', draw:'🤝' };
+  const titles = { p:'승리', a:'패배', draw:'무승부' };
+  const subs   = {
+    p: `이 게임에서 이겼습니다${byTurn?' (턴 제한 판정)':''}`,
+    a: `이 게임에서 졌습니다${byTurn?' (턴 제한 판정)':''}`,
+    draw: `무승부${byTurn?' (턴 제한 동점)':''}`,
+  };
+  const cls = { p:'win', a:'lose', draw:'draw' };
+
+  document.getElementById('ge-icon').textContent  = icons[winner];
+  document.getElementById('ge-gnum').textContent  = gn;
+  document.getElementById('ge-title').textContent = titles[winner];
+  document.getElementById('ge-title').className   = `end-title ${cls[winner]}`;
+  document.getElementById('ge-sub').textContent   = subs[winner];
+  document.getElementById('ge-php').textContent   = Math.max(0, G.pHP);
+  document.getElementById('ge-ahp').textContent   = Math.max(0, G.aHP);
+  document.getElementById('ge-pscore').textContent = G.score.p;
+  document.getElementById('ge-ascore').textContent = G.score.a;
+
+  const row = document.getElementById('ge-btns');
+  row.innerHTML = '';
+
+  if (seriesWinner) {
+    row.innerHTML = `<button class="btn primary" onclick="showSeriesEnd('${seriesWinner}')">결과 보기 →</button>`;
+  } else {
+    row.innerHTML = `
+      <button class="btn primary" onclick="nextGame()">다음 게임 (${G.gameNum}/3) →</button>
+      <button class="btn" onclick="resetGame()">처음으로</button>
+    `;
+  }
+}
+
+function showSeriesEnd(w) {
+  const icons  = { p:'🏆', a:'💀', draw:'🤝' };
+  const titles = { p:'최종 승리!', a:'최종 패배', draw:'최종 무승부' };
+  const subs   = {
+    p:'3판 2선승 시리즈에서 승리했습니다',
+    a:'3판 2선승 시리즈에서 패배했습니다',
+    draw:'시리즈가 무승부로 끝났습니다',
+  };
+  const cls = { p:'win', a:'lose', draw:'draw' };
+
+  document.getElementById('se-icon').textContent  = icons[w];
+  document.getElementById('se-title').textContent = titles[w];
+  document.getElementById('se-title').className   = `end-title ${cls[w]}`;
+  document.getElementById('se-sub').textContent   = subs[w];
+  document.getElementById('se-pscore').textContent = G.score.p;
+  document.getElementById('se-ascore').textContent = G.score.a;
+  show('series-end');
+}
+
+function nextGame() {
+  renderCharSelect();
+  show('char-select');
+}
+
+function resetGame() {
+  G = { diff:null, pChar:null, aChar:null, pHP:0, aHP:0, pMaxHP:0, aMaxHP:0,
+        turn:1, history:[], score:{p:0,a:0}, gameNum:1, active:false };
+  show('start');
+}
+
+// ─── INIT ───
+show('start');
 </script>
 </body>
 </html>
