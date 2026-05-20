@@ -500,24 +500,24 @@ body {
 // ═══════════════════════════════════════════════════════
 
 const CHARS = {
-  c1:{ id:'c1', name:'하율',  grade:'C', hp:20, scissors:2, rock:1, paper:1, emoji:'🧒🏻', desc:'가위 강 / 바위·보 약' },
-  c2:{ id:'c2', name:'서준',  grade:'C', hp:20, scissors:1, rock:2, paper:1, emoji:'👦🏻', desc:'바위 강 / 가위·보 약' },
-  c3:{ id:'c3', name:'지아',  grade:'C', hp:20, scissors:1, rock:1, paper:2, emoji:'👧🏻', desc:'보 강 / 가위·바위 약' },
-  b1:{ id:'b1', name:'준희',  grade:'B', hp:26, scissors:3, rock:2, paper:1, emoji:'🧑🏻‍🦱', desc:'가위 강 / 바위 중 / 보 약' },
-  b2:{ id:'b2', name:'수진',  grade:'B', hp:26, scissors:1, rock:3, paper:2, emoji:'👩🏻', desc:'바위 강 / 보 중 / 가위 약' },
-  b3:{ id:'b3', name:'혜정',  grade:'B', hp:26, scissors:2, rock:1, paper:3, emoji:'👱🏻‍♀️', desc:'보 강 / 가위 중 / 바위 약' },
-  a1:{ id:'a1', name:'철수',  grade:'A', hp:32, scissors:4, rock:3, paper:2, emoji:'👨🏻', desc:'가위 강 / 바위 중 / 보 약' },
-  a2:{ id:'a2', name:'영희',  grade:'A', hp:32, scissors:2, rock:4, paper:3, emoji:'👩🏻‍🦱', desc:'바위 강 / 보 중 / 가위 약' },
-  a3:{ id:'a3', name:'민수',  grade:'A', hp:32, scissors:3, rock:2, paper:4, emoji:'🧔🏻‍♂️', desc:'보 강 / 가위 중 / 바위 약' },
-  s1:{ id:'s1', name:'용남',  grade:'S', hp:38, scissors:5, rock:4, paper:3, emoji:'👴🏻', desc:'가위 강 / 바위 중 / 보 약' },
-  s2:{ id:'s2', name:'춘삼',  grade:'S', hp:38, scissors:3, rock:5, paper:4, emoji:'🧓🏻', desc:'바위 강 / 보 중 / 가위 약' },
-  s3:{ id:'s3', name:'순자',  grade:'S', hp:38, scissors:4, rock:3, paper:5, emoji:'👵🏻', desc:'보 강 / 가위 중 / 바위 약' },
+  c1:{ id:'c1', name:'하율',  grade:'C', hp:12, scissors:2, rock:1, paper:1, emoji:'🧒🏻', desc:'가위 강 / 바위·보 약' },
+  c2:{ id:'c2', name:'서준',  grade:'C', hp:12, scissors:1, rock:2, paper:1, emoji:'👦🏻', desc:'바위 강 / 가위·보 약' },
+  c3:{ id:'c3', name:'지아',  grade:'C', hp:12, scissors:1, rock:1, paper:2, emoji:'👧🏻', desc:'보 강 / 가위·바위 약' },
+  b1:{ id:'b1', name:'준희',  grade:'B', hp:14, scissors:3, rock:2, paper:1, emoji:'🧑🏻‍🦱', desc:'가위 강 / 바위 중 / 보 약' },
+  b2:{ id:'b2', name:'수진',  grade:'B', hp:14, scissors:1, rock:3, paper:2, emoji:'👩🏻', desc:'바위 강 / 보 중 / 가위 약' },
+  b3:{ id:'b3', name:'혜정',  grade:'B', hp:14, scissors:2, rock:1, paper:3, emoji:'👱🏻‍♀️', desc:'보 강 / 가위 중 / 바위 약' },
+  a1:{ id:'a1', name:'철수',  grade:'A', hp:16, scissors:4, rock:3, paper:2, emoji:'👨🏻', desc:'가위 강 / 바위 중 / 보 약' },
+  a2:{ id:'a2', name:'영희',  grade:'A', hp:16, scissors:2, rock:4, paper:3, emoji:'👩🏻‍🦱', desc:'바위 강 / 보 중 / 가위 약' },
+  a3:{ id:'a3', name:'민수',  grade:'A', hp:16, scissors:3, rock:2, paper:4, emoji:'🧔🏻‍♂️', desc:'보 강 / 가위 중 / 바위 약' },
+  s1:{ id:'s1', name:'용남',  grade:'S', hp:20, scissors:5, rock:4, paper:3, emoji:'👴🏻', desc:'가위 강 / 바위 중 / 보 약' },
+  s2:{ id:'s2', name:'춘삼',  grade:'S', hp:20, scissors:3, rock:5, paper:4, emoji:'🧓🏻', desc:'바위 강 / 보 중 / 가위 약' },
+  s3:{ id:'s3', name:'순자',  grade:'S', hp:20, scissors:4, rock:3, paper:5, emoji:'👵🏻', desc:'보 강 / 가위 중 / 바위 약' },
 };
 
 const GRADE_ORDER = ['C','B','A','S'];
 const GRADE_IDS   = { C:['c1','c2','c3'], B:['b1','b2','b3'], A:['a1','a2','a3'], S:['s1','s2','s3'] };
 const GRADE_COL   = { C:'var(--c)', B:'var(--b)', A:'var(--a)', S:'var(--s)' };
-const GRADE_INFO  = { C:{total:4,hp:20}, B:{total:6,hp:26}, A:{total:9,hp:32},  S:{total:12,hp:38} };
+const GRADE_INFO  = { C:{total:4,hp:12}, B:{total:6,hp:14}, A:{total:9,hp:16},  S:{total:12,hp:20} };
 
 const BEATS    = { scissors:'paper', rock:'scissors', paper:'rock' };
 const BEATS_BY = { scissors:'rock',  rock:'paper',    paper:'scissors' }; // what beats this move
