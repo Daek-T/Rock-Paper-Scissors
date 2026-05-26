@@ -161,7 +161,7 @@ body {
 .preview-footer { text-align: center; margin-top: var(--sp-sm); }
 
 /* ════════════════════════════════════════
-   BATTLE
+   GAME
 ════════════════════════════════════════ */
 .battle-top { display: flex; align-items: center; justify-content: space-between; margin-bottom: var(--sp-sm); }
 .turn-pill {
@@ -326,7 +326,7 @@ body {
 <div class="screen" id="screen-start">
 <div class="end-wrap">
   <div class="start-emoji">✌️✊🖐️</div>
-  <div class="start-label">QA Prototype v0.1</div>
+  <div class="start-label">QA Prototype v0.1.2</div>
   <div class="start-title">가위바위보</div>
   <div class="diff-list">
     <button class="diff-btn easy" onclick="selectDiff('easy')">
@@ -339,7 +339,7 @@ body {
       <div class="diff-name">🔴 어려움</div>
     </button>
     <button class="diff-btn legend" onclick="selectDiff('legend')">
-      <div class="diff-name">⚫ 최강</div>
+      <div class="diff-name">⚫ 도전</div>
     </button>
   </div>
 </div>
@@ -357,7 +357,7 @@ body {
 <!-- ════ PREVIEW ════ -->
 <div class="screen" id="screen-preview" hidden>
   <div class="page-nav">
-    <div class="nav-label">대전 준비 · 게임 <span id="pv-gnum">1</span>/3</div>
+    <div class="nav-label">게임 준비 · 게임 <span id="pv-gnum">1</span>/3</div>
     <div class="series-badge" id="pv-badge"></div>
   </div>
   <div class="preview-vs">
@@ -378,14 +378,14 @@ body {
     </div>
   </div>
   <div class="preview-footer">
-    <button class="btn primary" onclick="startBattle()" style="font-size:15px;padding:13px 36px;">⚔️ 대전 시작</button>
+    <button class="btn primary" onclick="startBattle()" style="font-size:15px;padding:13px 36px;">⚔️ 게임 시작</button>
   </div>
 </div>
 
-<!-- ════ BATTLE ════ -->
+<!-- ════ GAME ════ -->
 <div class="screen" id="screen-battle" hidden>
   <div class="battle-top">
-    <div class="nav-label">BATTLE</div>
+    <div class="nav-label">GAME</div>
     <div class="series-badge" id="bt-badge"></div>
     <div class="turn-pill">턴 <span id="bt-turn">1</span> / 10</div>
   </div>
@@ -452,7 +452,7 @@ body {
   </div>
 
   <div class="log-box">
-    <div class="log-head">전투 기록</div>
+    <div class="log-head">게임 기록</div>
     <div id="log-body"><div class="log-row" style="color:var(--muted)">— 아직 기록 없음 —</div></div>
   </div>
 </div>
@@ -487,9 +487,8 @@ body {
 <div class="screen" id="screen-series-end" hidden>
 <div class="end-wrap">
   <div class="end-icon"  id="se-icon"></div>
-  <div class="end-label">SERIES RESULT</div>
+  <div class="end-label">WINNER</div>
   <div class="end-title" id="se-title"></div>
-  <div class="end-sub"   id="se-sub"></div>
   <div class="series-disp">
     <div class="sd-side"><div class="sd-num" id="se-pscore"></div><div class="sd-label">나</div></div>
     <div class="sd-sep">—</div>
@@ -680,7 +679,7 @@ function renderPreview() {
 }
 
 // ═══════════════════════════════════════════════════════
-// BATTLE START
+// GAME START
 // ═══════════════════════════════════════════════════════
 
 function startBattle() {
@@ -827,7 +826,7 @@ function aiPick() {
     return bestBy(score);
   }
 
-  // ── ⚫ 최강: 역심리전 + 패턴 교란 + 미끼 전략 ──
+  // ── ⚫ 도전: 역심리전 + 패턴 교란 + 미끼 전략 ──
   if (diff === 'legend') {
     // 3판 전체 히스토리 빈도 분석
     const freq = { scissors:1, rock:1, paper:1 };
@@ -960,7 +959,7 @@ function playRound(pm) {
 }
 
 // ═══════════════════════════════════════════════════════
-// BATTLE / SERIES END
+// GAME / SERIES END
 // ═══════════════════════════════════════════════════════
 
 function endBattle(byTurn) {
@@ -1026,18 +1025,12 @@ function renderGameEnd(winner, seriesWinner, gn, byTurn) {
 
 function showSeriesEnd(w) {
   const icons  = { p:'🏆', a:'💀', draw:'🤝' };
-  const titles = { p:'최종 승리!', a:'최종 패배', draw:'최종 무승부' };
-  const subs   = {
-    p:'3판 2선승 시리즈에서 승리했습니다',
-    a:'3판 2선승 시리즈에서 패배했습니다',
-    draw:'시리즈가 무승부로 끝났습니다',
-  };
+  const titles = { p:'승리', a:'패배', draw:'무승부' };
   const cls = { p:'win', a:'lose', draw:'draw' };
 
   document.getElementById('se-icon').textContent  = icons[w];
   document.getElementById('se-title').textContent = titles[w];
   document.getElementById('se-title').className   = `end-title ${cls[w]}`;
-  document.getElementById('se-sub').textContent   = subs[w];
   document.getElementById('se-pscore').textContent = G.score.p;
   document.getElementById('se-ascore').textContent = G.score.a;
   show('series-end');
