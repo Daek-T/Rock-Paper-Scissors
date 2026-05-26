@@ -50,7 +50,13 @@ body {
   flex-direction: column;
   align-items: center;
 }
-.screen { width: 100%; max-width: 640px; padding: var(--sp-md) var(--sp-sm) 60px; }
+.screen {
+  position: fixed; top: 0; left: 50%; transform: translateX(-50%);
+  width: 100%; max-width: 640px;
+  height: 100vh; overflow-y: auto;
+  padding: var(--sp-md) var(--sp-sm) 60px;
+  background: var(--bg);
+}
 .mono { font-family: 'JetBrains Mono', monospace; }
 
 /* ── BUTTONS ── */
@@ -103,6 +109,7 @@ body {
 .diff-btn.easy   { border-left: 3px solid var(--b); }
 .diff-btn.normal { border-left: 3px solid var(--a); }
 .diff-btn.hard   { border-left: 3px solid var(--s); }
+.diff-btn.legend { border-left: 3px solid #888; }
 .diff-name { font-size: var(--f-md); font-weight: 700; color: #fff; margin-bottom: 3px; }
 .diff-desc { font-size: var(--f-xs); color: #a8b0be; }
 
@@ -324,15 +331,15 @@ body {
   <div class="diff-list">
     <button class="diff-btn easy" onclick="selectDiff('easy')">
       <div class="diff-name">🟢 쉬움</div>
-      <div class="diff-desc">AI가 완전 랜덤으로 선택합니다</div>
     </button>
     <button class="diff-btn normal" onclick="selectDiff('normal')">
       <div class="diff-name">🟡 중간</div>
-      <div class="diff-desc">최근 패턴을 일부 참고합니다</div>
     </button>
     <button class="diff-btn hard" onclick="selectDiff('hard')">
       <div class="diff-name">🔴 어려움</div>
-      <div class="diff-desc">전체 히스토리를 분석합니다</div>
+    </button>
+    <button class="diff-btn legend" onclick="selectDiff('legend')">
+      <div class="diff-name">⚫ 최강</div>
     </button>
   </div>
 </div>
@@ -534,7 +541,8 @@ let G = {
   pHP: 0, aHP: 0,
   pMaxHP: 0, aMaxHP: 0,
   turn: 1,
-  history: [],
+  history: [],      // 현재 1판의 히스토리
+  seriesHistory: [], // 3판 전체 히스토리 (hard용)
   score: { p:0, a:0 },
   gameNum: 1,
   active: false,
@@ -547,6 +555,7 @@ let G = {
 function show(id) {
   document.querySelectorAll('.screen').forEach(s => s.hidden = true);
   document.getElementById('screen-' + id).hidden = false;
+  window.scrollTo(0, 0);
 }
 
 function badge() {
@@ -737,37 +746,152 @@ function updateHP() {
 
 function aiPick() {
   const moves = ['scissors','rock','paper'];
-  const rnd   = () => moves[Math.floor(Math.random() * 3)];
-  const { diff, aChar, pChar, history } = G;
+  const { diff, aChar, pChar, history, seriesHistory, pHP, aHP, turn } = G;
+  const remainTurns = 11 - turn;
 
-  if (diff === 'easy') return rnd();
+  // ── 공통 헬퍼 ──────────────────────────────────────────
+  // 내가 m을 냈을 때 기대 데미지 (이기면 +내 공격력, 지면 -상대 공격력)
+  const expectVal = (m) => {
+    const win  =  aChar[m];          // 이겼을 때 줄 데미지
+    const lose = -pChar[BEATS[m]];   // 졌을 때 받을 데미지 (나를 이기는 패의 상대 공격력)
+    return win + lose;               // 기대값 (비기면 0이므로 무시)
+  };
 
+  // 세 패 중 가장 높은 값의 패 반환
+  const bestBy = (scoreFn) =>
+    moves.reduce((a, b) => scoreFn(a) >= scoreFn(b) ? a : b);
+
+  // ── 🟢 쉬움: 본인 스탯만, 이번 턴만, 히스토리 없음 ──
+  if (diff === 'easy') {
+    return bestBy(m => aChar[m]);
+  }
+
+  // ── 🟡 중간: 본인+상대 스탯, 이번+다음 턴, 현재 판 히스토리 ──
   if (diff === 'normal') {
-    // Predict player's likely move
-    let pred;
-    const len = history.length;
-    if (len >= 2 && history[len-1].pm === history[len-2].pm) {
-      pred = history[len-1].pm; // player repeating → counter it
-    } else if (len >= 1 && Math.random() < 0.4) {
-      pred = history[len-1].pm;
-    } else {
-      // guess player plays highest-stat move
-      pred = ['scissors','rock','paper'].reduce((a,b) => pChar[a]>=pChar[b]?a:b);
-    }
-    return Math.random() < 0.6 ? BEATS_BY[pred] : rnd();
+    // 현재 판 히스토리로 플레이어 패턴 파악
+    const freq = { scissors:0, rock:0, paper:0 };
+    history.forEach(h => freq[h.pm]++);
+    const total = history.length || 1;
+
+    // 각 패의 2턴 기대값 = 이번 턴 기대값 + 다음 턴 예상
+    const score = (m) => {
+      // 이번 턴: 내가 m을 냈을 때 기대값
+      const thisVal = expectVal(m);
+      // 다음 턴: 플레이어가 자주 낸 패를 또 낼 확률로 가중 기대값
+      const nextVal = moves.reduce((sum, pm) => {
+        const prob = (freq[pm] + 0.5) / (total + 1.5); // 라플라스 평활
+        const bestCounter = bestBy(am => aChar[am] * (BEATS[am] === pm ? 1 : 0));
+        return sum + prob * aChar[bestCounter];
+      }, 0);
+      return thisVal + nextVal * 0.5; // 다음 턴은 50% 가중
+    };
+    return bestBy(score);
   }
 
+  // ── 🔴 어려움: 전 스탯+HP+턴, 3판 전체 히스토리 ──
   if (diff === 'hard') {
-    // Frequency analysis (seed 1 to avoid cold-start bias)
-    const freq = { scissors:1, rock:1, paper:1 };
-    history.forEach(h => freq[h.pm] += 2);
-    const pred = Object.keys(freq).reduce((a,b) => freq[a]>=freq[b]?a:b);
-    const counter  = BEATS_BY[pred];
-    const bestAtk  = ['scissors','rock','paper'].reduce((a,b) => aChar[a]>=aChar[b]?a:b);
-    return Math.random() < 0.65 ? counter : bestAtk;
+    // 3판 전체 히스토리로 플레이어 패턴 파악
+    const freq = { scissors:1, rock:1, paper:1 }; // 라플라스 초기값
+    seriesHistory.forEach(h => freq[h.pm] += 2);
+    const total = seriesHistory.length * 2 + 3;
+
+    // 상황 판단: 내가 이기고 있는지
+    const hpDiff = aHP - pHP; // 양수면 내가 유리 (상대 HP가 내 HP보다 낮음)
+    const isWinning = hpDiff > 0;
+    const isCritical = remainTurns <= 3; // 마지막 3턴
+
+    const score = (m) => {
+      // 기본 기대값
+      const baseVal = expectVal(m);
+
+      // 플레이어 패턴 기반 가중치
+      const pmProb = moves.reduce((sum, pm) => {
+        const prob = freq[pm] / total;
+        const dmgIfWin  = BEATS[m] === pm ?  aChar[m] : 0; // m이 pm을 이기면
+        const dmgIfLose = BEATS[pm] === m ? -pChar[pm] : 0; // pm이 m을 이기면
+        return sum + prob * (dmgIfWin + dmgIfLose);
+      }, 0);
+
+      // 상황별 전략 조정
+      let situationBonus = 0;
+      if (isCritical && !isWinning) {
+        // 위기: 내 최고 공격력 패에 가중치
+        situationBonus = aChar[m] * 2;
+      } else if (isWinning && remainTurns > 3) {
+        // 유리: 안정적 기대값 선호 (큰 리스크 회피)
+        situationBonus = baseVal > 0 ? baseVal : 0;
+      }
+
+      return pmProb + situationBonus;
+    };
+    return bestBy(score);
   }
 
-  return rnd();
+  // ── ⚫ 최강: 역심리전 + 패턴 교란 + 미끼 전략 ──
+  if (diff === 'legend') {
+    // 3판 전체 히스토리 빈도 분석
+    const freq = { scissors:1, rock:1, paper:1 };
+    seriesHistory.forEach(h => freq[h.pm] += 2);
+    const total = seriesHistory.length * 2 + 3;
+
+    // AI 자신의 최근 패턴 분석 (교란용)
+    const aiFreq = { scissors:0, rock:0, paper:0 };
+    seriesHistory.forEach(h => aiFreq[h.am]++);
+    const aiTotal = seriesHistory.length || 1;
+
+    // 상황 판단
+    const hpDiff    = aHP - pHP;
+    const isWinning = hpDiff > 0;
+    const isCritical = remainTurns <= 3;
+    const isBaiting  = seriesHistory.length >= 4 &&
+      seriesHistory.slice(-3).every(h => h.am === seriesHistory[seriesHistory.length-1].am);
+    // 최근 3턴 AI가 같은 패를 냈으면 미끼가 심어진 상태 → 역이용
+
+    const score = (m) => {
+      // ① 기본 기대값 (어려움과 동일)
+      const baseVal = expectVal(m);
+
+      // ② 플레이어 패턴 기반 가중치
+      const pmProb = moves.reduce((sum, pm) => {
+        const prob = freq[pm] / total;
+        const dmgIfWin  = BEATS[m] === pm ?  aChar[m] : 0;
+        const dmgIfLose = BEATS[pm] === m ? -pChar[pm] : 0;
+        return sum + prob * (dmgIfWin + dmgIfLose);
+      }, 0);
+
+      // ③ 역심리전: 플레이어가 AI 패턴을 읽고 카운터를 낼 것을 예측
+      // 플레이어가 예상할 AI의 패 → 그 카운터 → 그 카운터의 카운터
+      const aiMostFreq  = Object.keys(aiFreq).reduce((a,b) => aiFreq[a]>=aiFreq[b]?a:b);
+      const playerGuess = BEATS_BY[aiMostFreq]; // 플레이어가 낼 것으로 예상되는 카운터
+      const metaCounter = BEATS_BY[playerGuess]; // 그 카운터의 카운터
+      const metaBonus   = m === metaCounter ? 3 : 0;
+
+      // ④ 패턴 교란: AI 자신이 특정 패를 너무 많이 냈으면 페널티
+      const aiUsageRate = (aiFreq[m] + 0.5) / (aiTotal + 1.5);
+      const diversityPenalty = aiUsageRate > 0.5 ? -2 : 0; // 50% 초과 사용 시 패널티
+
+      // ⑤ 미끼 역이용: 미끼가 심어진 상태면 플레이어가 카운터를 낼 것 → 그 카운터를 역이용
+      let baitBonus = 0;
+      if (isBaiting) {
+        const baitMove    = seriesHistory[seriesHistory.length-1].am;
+        const baitCounter = BEATS_BY[baitMove]; // 플레이어가 낼 카운터
+        baitBonus = m === BEATS_BY[baitCounter] ? 4 : 0; // 그 카운터의 카운터
+      }
+
+      // ⑥ 상황별 전략 (어려움과 동일)
+      let situationBonus = 0;
+      if (isCritical && !isWinning) {
+        situationBonus = aChar[m] * 2;
+      } else if (isWinning && remainTurns > 3) {
+        situationBonus = baseVal > 0 ? baseVal : 0;
+      }
+
+      return pmProb + metaBonus + diversityPenalty + baitBonus + situationBonus;
+    };
+    return bestBy(score);
+  }
+
+  return moves[Math.floor(Math.random() * 3)];
 }
 
 // ═══════════════════════════════════════════════════════
@@ -794,7 +918,9 @@ function playRound(pm) {
   }
 
   const turnNum = G.turn;
-  G.history.push({ pm, am, result, pdmg, admg, turn: turnNum });
+  const rec = { pm, am, result, pdmg, admg, turn: turnNum };
+  G.history.push(rec);
+  G.seriesHistory.push(rec); // hard 난이도용 3판 전체 누적
   G.turn++;
 
   // Update HP + turn counter
@@ -924,7 +1050,7 @@ function nextGame() {
 
 function resetGame() {
   G = { diff:null, pChar:null, aChar:null, pHP:0, aHP:0, pMaxHP:0, aMaxHP:0,
-        turn:1, history:[], score:{p:0,a:0}, gameNum:1, active:false };
+        turn:1, history:[], seriesHistory:[], score:{p:0,a:0}, gameNum:1, active:false };
   show('start');
 }
 
