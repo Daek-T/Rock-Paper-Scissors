@@ -1109,140 +1109,125 @@ function aiPick() {
     return softPick(score, 0.9);
   }
 
-  // ⚫ 도전: 알파고급 재앙 모드
+  // ⚫ 도전: 독심술 모드 — 항상 플레이어 마음을 꿰뚫는다
   if (diff === 'legend') {
     const n = seriesHistory.length;
 
-    // ── 1. Counterfactual Regret Minimization (CFR) ────────
-    // 각 턴마다 "다른 패를 냈으면 어땠을까"를 누적해서 최적 전략 도출
-    const regret = { scissors:0, rock:0, paper:0 };
-    const stratSum = { scissors:0, rock:0, paper:0 };
+    // ── 플레이어 패턴 다층 분석 ────────────────────────────
 
-    seriesHistory.forEach(h => {
-      // 실제로 낸 패 대신 다른 패를 냈을 때의 반사실적 이득 계산
-      moves.forEach(m => {
-        const cfVal = BEATS[m] === h.pm ?  aChar[m]    // m이 플레이어 패를 이겼다면
-                    : BEATS[h.pm] === m ? -pChar[h.pm] // 플레이어 패가 m을 이겼다면
-                    : 0;
-        regret[m] += cfVal;
-      });
-      // 누적 전략
-      moves.forEach(m => stratSum[m] += Math.max(0, regret[m]));
+    // 1. 전체 빈도
+    const pFreq = { scissors:0, rock:0, paper:0 };
+    seriesHistory.forEach(h => pFreq[h.pm]++);
+
+    // 2. 직전 자신의 패 이후 조건부 (내가 A를 냈을 때 다음에 B를 낸다)
+    const afterSelf = {};
+    moves.forEach(m => afterSelf[m] = { scissors:0, rock:0, paper:0 });
+    seriesHistory.forEach((h,i) => {
+      if (i === 0) return;
+      afterSelf[seriesHistory[i-1].pm][h.pm]++;
     });
 
-    // CFR 전략: 양수 후회만 반영한 혼합 전략
-    const posRegretSum = moves.reduce((s,m) => s + Math.max(0, regret[m]), 0);
-    const cfrProb = posRegretSum > 0
-      ? { scissors: Math.max(0,regret.scissors)/posRegretSum,
-          rock:     Math.max(0,regret.rock)/posRegretSum,
-          paper:    Math.max(0,regret.paper)/posRegretSum }
-      : { scissors:1/3, rock:1/3, paper:1/3 };
-
-    // ── 2. Bayesian 플레이어 모델 ──────────────────────────
-    // 전체, 상황별, 직전 패 이후 조건부 빈도를 베이지안 업데이트
-    const prior = 2; // 균등 사전 확률
-    const pFreq = { scissors:prior, rock:prior, paper:prior };
-    seriesHistory.forEach(h => pFreq[h.pm] += 3);
-
-    // 직전 결과별 조건부 빈도
-    const condFreq = {
-      win:  { scissors:prior, rock:prior, paper:prior },
-      lose: { scissors:prior, rock:prior, paper:prior },
-      draw: { scissors:prior, rock:prior, paper:prior },
+    // 3. 직전 결과 이후 조건부 (이겼을 때, 졌을 때, 비겼을 때)
+    const afterResult = {
+      win:  { scissors:0, rock:0, paper:0 },
+      lose: { scissors:0, rock:0, paper:0 },
+      draw: { scissors:0, rock:0, paper:0 },
     };
     seriesHistory.forEach((h,i) => {
       if (i === 0) return;
-      const prevResult = seriesHistory[i-1].result;
-      condFreq[prevResult][h.pm] += 5; // 조건부 패턴 강하게 반영
+      afterResult[seriesHistory[i-1].result][h.pm]++;
     });
 
-    // 직전 결과 기반 예측 확률
+    // 4. 직전 상대(AI) 패 이후 조건부 (AI가 A를 냈을 때 플레이어가 B를 낸다)
+    const afterAI = {};
+    moves.forEach(m => afterAI[m] = { scissors:0, rock:0, paper:0 });
+    seriesHistory.forEach((h,i) => {
+      if (i === 0) return;
+      afterAI[seriesHistory[i-1].am][h.pm]++;
+    });
+
+    // ── 다층 예측 앙상블 ───────────────────────────────────
+    // 여러 예측 모델을 합쳐서 가장 신뢰도 높은 예측을 만든다
+
+    const lastPm     = n > 0 ? seriesHistory[n-1].pm     : null;
+    const lastAm     = n > 0 ? seriesHistory[n-1].am     : null;
     const lastResult = n > 0 ? seriesHistory[n-1].result : null;
-    const activeCond = lastResult ? condFreq[lastResult] : pFreq;
-    const activeTotal = Object.values(activeCond).reduce((a,b)=>a+b,0);
-    const pPred = {
-      scissors: activeCond.scissors / activeTotal,
-      rock:     activeCond.rock     / activeTotal,
-      paper:    activeCond.paper    / activeTotal,
-    };
 
-    // ── 3. 착취 vs 탐색 결정 ──────────────────────────────
-    // 히스토리가 쌓일수록 착취 비율 증가 (최대 95%)
-    const exploitRate = Math.min(0.95, 0.3 + n * 0.07);
+    // 각 모델별 예측 확률 계산
+    const ensembleScore = (pm) => {
+      let score = 0;
+      let weight = 0;
 
-    // 순수 착취: 플레이어가 가장 많이 낼 패를 이기는 패 선택
-    const pMostLikely = moves.reduce((a,b) => pPred[a]>=pPred[b]?a:b);
-    const pureExploit = BEATS_BY[pMostLikely];
-
-    // ── 4. HP 기반 최적 데미지 경로 계산 ─────────────────
-    const hpGap     = pHP - aHP;
-    const isWinning = aHP > pHP;
-    const isCritical = remainTurns <= 3;
-    const mustKill   = aHP - pHP > 0 && remainTurns === 1; // 마지막 턴, 반드시 이겨야
-
-    // 현재 HP 차이로 필요한 최소 데미지 계산
-    const neededDmg  = Math.max(0, pHP); // 상대 HP를 0으로 만들어야 하는 최소 데미지
-    const bestKillMove = moves.reduce((a,b) => aChar[a]>=aChar[b]?a:b); // 가장 강한 패
-
-    // ── 5. 역심리전 심층 모델 ─────────────────────────────
-    const aiFreq = { scissors:prior, rock:prior, paper:prior };
-    seriesHistory.forEach(h => aiFreq[h.am] += 2);
-    const aiTotal = Object.values(aiFreq).reduce((a,b)=>a+b,0);
-    const aiMost = moves.reduce((a,b) => aiFreq[a]>=aiFreq[b]?a:b);
-
-    // 플레이어가 AI를 읽고 있다고 가정하고 메타 레벨 계산
-    const meta1 = BEATS_BY[aiMost];
-    const meta2 = BEATS_BY[meta1];
-    const meta3 = BEATS_BY[meta2];
-    const meta4 = BEATS_BY[meta3];
-
-    // ── 6. 최종 점수 계산 ─────────────────────────────────
-    const score = (m) => {
-      // CFR 기반 기대값
-      const cfrVal = moves.reduce((s, pm) => {
-        const gain = BEATS[m]===pm ?  aChar[m] : BEATS[pm]===m ? -pChar[pm] : 0;
-        return s + pPred[pm] * gain;
-      }, 0);
-
-      // Bayesian 예측 기반 착취값
-      const exploitVal = BEATS_BY[pMostLikely] === m ? 15 : 0;
-
-      // 역심리전 (4수, 차등 가중치)
-      const metaVal = m===meta4 ? 10 : m===meta3 ? 7 : m===meta2 ? 4 : 0;
-
-      // AI 패턴 교란 (30% 이상 쓴 패 강한 페널티)
-      const aiRate = aiFreq[m] / aiTotal;
-      const diversity = aiRate > 0.5 ? -15 : aiRate > 0.35 ? -6 : 0;
-
-      // HP 상황별 극단 전략
-      let hpBonus = 0;
-      if (mustKill) {
-        // 반드시 이겨야 할 때: 최고 공격력 패 올인
-        hpBonus = m === bestKillMove ? 30 : -10;
-      } else if (isCritical && hpGap > 0) {
-        // 막판 + 불리: 공격적으로
-        hpBonus = aChar[m] * 3.5;
-      } else if (isCritical && isWinning) {
-        // 막판 + 유리: 안전하게 마무리
-        hpBonus = cfrVal > 0 ? cfrVal * 4 : -5;
-      } else if (hpGap > 8) {
-        // 크게 불리: 올인
-        hpBonus = aChar[m] * 3;
-      } else if (isWinning) {
-        // 유리: 리드 유지
-        hpBonus = cfrVal > 0 ? cfrVal * 2 : 0;
+      // 모델1: 전체 빈도 (가중치 1)
+      if (n > 0) {
+        score  += (pFreq[pm] / n) * 1;
+        weight += 1;
       }
 
-      return cfrVal * 4.0
-           + exploitVal * exploitRate * 5.0
-           + metaVal
-           + diversity
-           + hpBonus;
+      // 모델2: 직전 자신의 패 이후 (가중치 3 — 인간은 자기 직전 패 영향을 많이 받음)
+      if (lastPm) {
+        const t = Object.values(afterSelf[lastPm]).reduce((a,b)=>a+b,0);
+        if (t > 0) { score += (afterSelf[lastPm][pm] / t) * 3; weight += 3; }
+      }
+
+      // 모델3: 직전 결과 이후 (가중치 4 — 결과에 따라 전략을 바꾸는 경향)
+      if (lastResult) {
+        const t = Object.values(afterResult[lastResult]).reduce((a,b)=>a+b,0);
+        if (t > 0) { score += (afterResult[lastResult][pm] / t) * 4; weight += 4; }
+      }
+
+      // 모델4: 직전 AI 패 이후 (가중치 3 — 상대 패를 보고 다음 패를 정함)
+      if (lastAm) {
+        const t = Object.values(afterAI[lastAm]).reduce((a,b)=>a+b,0);
+        if (t > 0) { score += (afterAI[lastAm][pm] / t) * 3; weight += 3; }
+      }
+
+      return weight > 0 ? score / weight : 1/3;
     };
 
-    // 히스토리 쌓일수록 온도 0.5→0.05로 급감 (점점 더 확정적)
-    const temp = Math.max(0.05, 0.5 - n * 0.025);
-    return softPick(score, temp);
+    // 앙상블 예측 확률 정규화
+    const rawScores = { scissors: ensembleScore('scissors'), rock: ensembleScore('rock'), paper: ensembleScore('paper') };
+    const rawTotal  = rawScores.scissors + rawScores.rock + rawScores.paper;
+    const pPred     = {
+      scissors: rawScores.scissors / rawTotal,
+      rock:     rawScores.rock     / rawTotal,
+      paper:    rawScores.paper    / rawTotal,
+    };
+
+    // 예측된 플레이어 패를 이기는 패 선택
+    const predictedPm = moves.reduce((a,b) => pPred[a]>=pPred[b]?a:b);
+    const winningMove = BEATS_BY[predictedPm];
+
+    // ── 확신도 계산 ────────────────────────────────────────
+    // 예측이 얼마나 확실한가 (0.33이면 균등, 1이면 완전 확신)
+    const certainty = (pPred[predictedPm] - 1/3) / (2/3); // 0~1로 정규화
+
+    // ── AI 패턴 교란 ───────────────────────────────────────
+    // AI 자신도 패턴이 생기면 역이용당할 수 있으므로 교란
+    const aiFreq  = { scissors:0, rock:0, paper:0 };
+    seriesHistory.forEach(h => aiFreq[h.am]++);
+    const aiRate  = n > 0 ? aiFreq[winningMove] / n : 0;
+    const tooFreq = aiRate > 0.5; // 50% 이상 같은 패 쓰면 교란
+
+    // ── 최종 선택 ──────────────────────────────────────────
+    if (n < 2) {
+      // 초반: 기대값 기반으로 선택 (데이터 부족)
+      const ev = (m) => moves.reduce((s,pm) => {
+        return s + (1/3) * (BEATS[m]===pm ? aChar[m] : BEATS[pm]===m ? -pChar[pm] : 0);
+      }, 0);
+      return moves.reduce((a,b) => ev(a)>=ev(b)?a:b);
+    }
+
+    if (!tooFreq) {
+      // 예측 확신도에 따라 결정적으로 선택
+      // 확신도가 조금만 있어도 바로 예측 패로 이기는 패 선택
+      if (certainty > 0.05 || n >= 5) return winningMove;
+    }
+
+    // 패턴 교란 필요 시: 두 번째로 확률 높은 패를 이기는 패 선택
+    const secondPm = moves.filter(m => m !== predictedPm)
+      .reduce((a,b) => pPred[a]>=pPred[b]?a:b);
+    return BEATS_BY[secondPm];
   }
   return moves[Math.floor(Math.random() * 3)];
 }
