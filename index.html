@@ -758,7 +758,7 @@ function gradeSpan(g) {
 function statStr(c) {
   const vals = [c.scissors, c.rock, c.paper];
   const maxV = Math.max(...vals), minV = Math.min(...vals);
-  const col = (v) => v === maxV ? 'color:var(--lose)' : v === minV ? 'color:var(--c)' : '';
+  const col = (v) => v === maxV ? 'color:#e87070' : v === minV ? 'color:#6eb5c8' : '';
   return [
     `<span class="prev-stat" style="${col(c.scissors)}">✌🏻 가위 <b>${c.scissors}</b></span>`,
     `<span class="prev-stat" style="${col(c.rock)}">✊🏻 바위 <b>${c.rock}</b></span>`,
