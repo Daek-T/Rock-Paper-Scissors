@@ -1109,129 +1109,141 @@ function aiPick() {
     return softPick(score, 0.9);
   }
 
-  // ⚫ 도전: Nash 균형 + 실시간 편향 감지 + 상황별 최적 전략
+  // ⚫ 도전: 알파고급 재앙 모드
   if (diff === 'legend') {
+    const n = seriesHistory.length;
 
-    // ── 1. Nash 균형 기반 혼합 전략 계산 ──────────────────
-    // 각 패의 기대 데미지 행렬 계산
-    const payoff = (my, opp) =>
-      BEATS[my] === opp ?  aChar[my]   // 내가 이기면 내 공격력
-    : BEATS[opp] === my ? -pChar[opp]  // 상대가 이기면 상대 공격력 손실
-    : 0;
+    // ── 1. Counterfactual Regret Minimization (CFR) ────────
+    // 각 턴마다 "다른 패를 냈으면 어땠을까"를 누적해서 최적 전략 도출
+    const regret = { scissors:0, rock:0, paper:0 };
+    const stratSum = { scissors:0, rock:0, paper:0 };
 
-    // 반복 계산으로 Nash 균형 근사 (fictitious play, 100회 반복)
-    const nashFreq = { scissors:1, rock:1, paper:1 };
-    for (let i = 0; i < 100; i++) {
-      const nashTotal = nashFreq.scissors + nashFreq.rock + nashFreq.paper;
-      // 상대(플레이어)가 nashFreq 비율로 낸다고 가정할 때 AI 최적 응답
-      const nashScore = (m) => moves.reduce((s, pm) =>
-        s + (nashFreq[pm]/nashTotal) * payoff(m, pm), 0);
-      const best = moves.reduce((a,b) => nashScore(a)>=nashScore(b)?a:b);
-      nashFreq[best] += 1;
-    }
-    const nashTotal = nashFreq.scissors + nashFreq.rock + nashFreq.paper;
-    const nashProb  = { scissors: nashFreq.scissors/nashTotal,
-                        rock:     nashFreq.rock/nashTotal,
-                        paper:    nashFreq.paper/nashTotal };
-
-    // ── 2. 플레이어 실시간 편향 감지 ──────────────────────
-    // 전체 빈도
-    const freq = { scissors:1, rock:1, paper:1 };
-    seriesHistory.forEach(h => freq[h.pm] += 5);
-    const freqTotal = seriesHistory.length * 5 + 3;
-
-    // 상황별 조건부 빈도 (지고 있을 때, 이기고 있을 때, 비겼을 때)
-    const freqWhenLosing  = { scissors:1, rock:1, paper:1 };
-    const freqWhenWinning = { scissors:1, rock:1, paper:1 };
-    const freqAfterDraw   = { scissors:1, rock:1, paper:1 };
-    seriesHistory.forEach((h, i) => {
-      if (i === 0) return;
-      const prev = seriesHistory[i-1];
-      if (prev.pdmg > 0) freqWhenLosing[h.pm]  += 3; // 이전 턴 내가 데미지 받았을 때
-      if (prev.admg > 0) freqWhenWinning[h.pm] += 3; // 이전 턴 내가 데미지 줬을 때
-      if (prev.result === 'draw') freqAfterDraw[h.pm] += 3; // 이전 턴 비겼을 때
+    seriesHistory.forEach(h => {
+      // 실제로 낸 패 대신 다른 패를 냈을 때의 반사실적 이득 계산
+      moves.forEach(m => {
+        const cfVal = BEATS[m] === h.pm ?  aChar[m]    // m이 플레이어 패를 이겼다면
+                    : BEATS[h.pm] === m ? -pChar[h.pm] // 플레이어 패가 m을 이겼다면
+                    : 0;
+        regret[m] += cfVal;
+      });
+      // 누적 전략
+      moves.forEach(m => stratSum[m] += Math.max(0, regret[m]));
     });
 
-    // AI 자신의 패턴 (교란용)
-    const aiFreq = { scissors:1, rock:1, paper:1 };
-    seriesHistory.forEach(h => aiFreq[h.am] += 2);
-    const aiTotal = seriesHistory.length * 2 + 3;
+    // CFR 전략: 양수 후회만 반영한 혼합 전략
+    const posRegretSum = moves.reduce((s,m) => s + Math.max(0, regret[m]), 0);
+    const cfrProb = posRegretSum > 0
+      ? { scissors: Math.max(0,regret.scissors)/posRegretSum,
+          rock:     Math.max(0,regret.rock)/posRegretSum,
+          paper:    Math.max(0,regret.paper)/posRegretSum }
+      : { scissors:1/3, rock:1/3, paper:1/3 };
 
-    // ── 3. 상황 판단 ───────────────────────────────────────
-    const isWinning  = aHP > pHP;
-    const isCritical = remainTurns <= 3;
-    const hpGap      = pHP - aHP; // 양수면 AI가 불리
-    const aggression = Math.min(3.0, Math.max(0.5, hpGap / 3 + 1));
+    // ── 2. Bayesian 플레이어 모델 ──────────────────────────
+    // 전체, 상황별, 직전 패 이후 조건부 빈도를 베이지안 업데이트
+    const prior = 2; // 균등 사전 확률
+    const pFreq = { scissors:prior, rock:prior, paper:prior };
+    seriesHistory.forEach(h => pFreq[h.pm] += 3);
 
-    // 현재 상황에 맞는 플레이어 패턴 선택
-    const lastResult = seriesHistory.length > 0
-      ? seriesHistory[seriesHistory.length-1].result : null;
-    const situFreq = lastResult === 'win'  ? freqWhenLosing   // AI가 이겼으면 플레이어는 지고 있는 상황
-                   : lastResult === 'lose' ? freqWhenWinning  // AI가 졌으면 플레이어는 이기고 있는 상황
-                   : lastResult === 'draw' ? freqAfterDraw
-                   : freq;
-    const situTotal = Object.values(situFreq).reduce((a,b)=>a+b,0);
+    // 직전 결과별 조건부 빈도
+    const condFreq = {
+      win:  { scissors:prior, rock:prior, paper:prior },
+      lose: { scissors:prior, rock:prior, paper:prior },
+      draw: { scissors:prior, rock:prior, paper:prior },
+    };
+    seriesHistory.forEach((h,i) => {
+      if (i === 0) return;
+      const prevResult = seriesHistory[i-1].result;
+      condFreq[prevResult][h.pm] += 5; // 조건부 패턴 강하게 반영
+    });
 
-    // ── 4. 역심리전 4수 ────────────────────────────────────
-    const aiMostFreq = Object.keys(aiFreq).reduce((a,b) => aiFreq[a]>=aiFreq[b]?a:b);
-    const meta1 = BEATS_BY[aiMostFreq]; // 플레이어 예상 카운터
-    const meta2 = BEATS_BY[meta1];      // 2수
-    const meta3 = BEATS_BY[meta2];      // 3수
-    const meta4 = BEATS_BY[meta3];      // 4수
-
-    // ── 5. 최종 점수 계산 ──────────────────────────────────
-    const score = (m) => {
-      // Nash 균형 기반 기본 점수
-      const nashVal = nashProb[m] * 10;
-
-      // 전체 패턴 기반
-      const patternVal = moves.reduce((sum, pm) => {
-        const prob = freq[pm] / freqTotal;
-        return sum + prob * (BEATS[m]===pm ? aChar[m] : BEATS[pm]===m ? -pChar[pm] : 0);
-      }, 0);
-
-      // 상황별 조건부 패턴 기반
-      const situVal = moves.reduce((sum, pm) => {
-        const prob = situFreq[pm] / situTotal;
-        return sum + prob * (BEATS[m]===pm ? aChar[m]*1.5 : BEATS[pm]===m ? -pChar[pm]*1.5 : 0);
-      }, 0);
-
-      // 역심리전 4수 (각 수마다 가중치 차등)
-      const metaBonus = m === meta4 ? 12
-                      : m === meta3 ?  8
-                      : m === meta2 ?  4 : 0;
-
-      // 패턴 교란 (AI 자신이 특정 패 40% 이상 시 강한 페널티)
-      const aiRate = aiFreq[m] / aiTotal;
-      const diversityPenalty = aiRate > 0.4 ? -8 : aiRate > 0.3 ? -3 : 0;
-
-      // 미끼 역이용 (직전 턴부터 발동, 가중치 최대)
-      let baitBonus = 0;
-      if (seriesHistory.length >= 1) {
-        const lastAm    = seriesHistory[seriesHistory.length-1].am;
-        const baitCount = BEATS_BY[lastAm];
-        baitBonus = m === BEATS_BY[baitCount] ? 12 : 0;
-      }
-
-      // 상황별 공격성 조절
-      const urgency = isCritical && !isWinning
-        ? aChar[m] * aggression * 4   // 위기: 극단적 공격
-        : isCritical && isWinning
-        ? (patternVal > 0 ? patternVal * 3 : 0) // 유리 + 막판: 안전하게 마무리
-        : !isWinning && hpGap > 5
-        ? aChar[m] * aggression * 2   // 크게 불리: 공격적으로
-        : isWinning
-        ? (patternVal > 0 ? patternVal * 2 : 0) // 유리: 안정 유지
-        : 0;
-
-      return nashVal*2.0 + patternVal*2.0 + situVal*3.0
-           + metaBonus + diversityPenalty + baitBonus + urgency;
+    // 직전 결과 기반 예측 확률
+    const lastResult = n > 0 ? seriesHistory[n-1].result : null;
+    const activeCond = lastResult ? condFreq[lastResult] : pFreq;
+    const activeTotal = Object.values(activeCond).reduce((a,b)=>a+b,0);
+    const pPred = {
+      scissors: activeCond.scissors / activeTotal,
+      rock:     activeCond.rock     / activeTotal,
+      paper:    activeCond.paper    / activeTotal,
     };
 
-    // 온도 0.2: 사실상 항상 최적해
-    return softPick(score, 0.2);
-  }
+    // ── 3. 착취 vs 탐색 결정 ──────────────────────────────
+    // 히스토리가 쌓일수록 착취 비율 증가 (최대 95%)
+    const exploitRate = Math.min(0.95, 0.3 + n * 0.07);
 
+    // 순수 착취: 플레이어가 가장 많이 낼 패를 이기는 패 선택
+    const pMostLikely = moves.reduce((a,b) => pPred[a]>=pPred[b]?a:b);
+    const pureExploit = BEATS_BY[pMostLikely];
+
+    // ── 4. HP 기반 최적 데미지 경로 계산 ─────────────────
+    const hpGap     = pHP - aHP;
+    const isWinning = aHP > pHP;
+    const isCritical = remainTurns <= 3;
+    const mustKill   = aHP - pHP > 0 && remainTurns === 1; // 마지막 턴, 반드시 이겨야
+
+    // 현재 HP 차이로 필요한 최소 데미지 계산
+    const neededDmg  = Math.max(0, pHP); // 상대 HP를 0으로 만들어야 하는 최소 데미지
+    const bestKillMove = moves.reduce((a,b) => aChar[a]>=aChar[b]?a:b); // 가장 강한 패
+
+    // ── 5. 역심리전 심층 모델 ─────────────────────────────
+    const aiFreq = { scissors:prior, rock:prior, paper:prior };
+    seriesHistory.forEach(h => aiFreq[h.am] += 2);
+    const aiTotal = Object.values(aiFreq).reduce((a,b)=>a+b,0);
+    const aiMost = moves.reduce((a,b) => aiFreq[a]>=aiFreq[b]?a:b);
+
+    // 플레이어가 AI를 읽고 있다고 가정하고 메타 레벨 계산
+    const meta1 = BEATS_BY[aiMost];
+    const meta2 = BEATS_BY[meta1];
+    const meta3 = BEATS_BY[meta2];
+    const meta4 = BEATS_BY[meta3];
+
+    // ── 6. 최종 점수 계산 ─────────────────────────────────
+    const score = (m) => {
+      // CFR 기반 기대값
+      const cfrVal = moves.reduce((s, pm) => {
+        const gain = BEATS[m]===pm ?  aChar[m] : BEATS[pm]===m ? -pChar[pm] : 0;
+        return s + pPred[pm] * gain;
+      }, 0);
+
+      // Bayesian 예측 기반 착취값
+      const exploitVal = BEATS_BY[pMostLikely] === m ? 15 : 0;
+
+      // 역심리전 (4수, 차등 가중치)
+      const metaVal = m===meta4 ? 10 : m===meta3 ? 7 : m===meta2 ? 4 : 0;
+
+      // AI 패턴 교란 (30% 이상 쓴 패 강한 페널티)
+      const aiRate = aiFreq[m] / aiTotal;
+      const diversity = aiRate > 0.5 ? -15 : aiRate > 0.35 ? -6 : 0;
+
+      // HP 상황별 극단 전략
+      let hpBonus = 0;
+      if (mustKill) {
+        // 반드시 이겨야 할 때: 최고 공격력 패 올인
+        hpBonus = m === bestKillMove ? 30 : -10;
+      } else if (isCritical && hpGap > 0) {
+        // 막판 + 불리: 공격적으로
+        hpBonus = aChar[m] * 3.5;
+      } else if (isCritical && isWinning) {
+        // 막판 + 유리: 안전하게 마무리
+        hpBonus = cfrVal > 0 ? cfrVal * 4 : -5;
+      } else if (hpGap > 8) {
+        // 크게 불리: 올인
+        hpBonus = aChar[m] * 3;
+      } else if (isWinning) {
+        // 유리: 리드 유지
+        hpBonus = cfrVal > 0 ? cfrVal * 2 : 0;
+      }
+
+      return cfrVal * 4.0
+           + exploitVal * exploitRate * 5.0
+           + metaVal
+           + diversity
+           + hpBonus;
+    };
+
+    // 히스토리 쌓일수록 온도 0.5→0.05로 급감 (점점 더 확정적)
+    const temp = Math.max(0.05, 0.5 - n * 0.025);
+    return softPick(score, temp);
+  }
   return moves[Math.floor(Math.random() * 3)];
 }
 
