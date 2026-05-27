@@ -806,7 +806,7 @@ function renderShopItems() {
         </div>
         <button class="item-btn ${btnClass}"
           onclick="buyItem('${currentTab}','${item.id}')"
-          ${isEq||!canAfford?'disabled':''}>
+          ${!isEq&&!canAfford?'disabled':''}>
           ${btnText}
         </button>
       </div>`;
@@ -815,9 +815,18 @@ function renderShopItems() {
 
 function buyItem(part, itemId) {
   const item = ITEMS[part].find(i => i.id === itemId);
-  if (!item || SHOP.points < item.price) return;
+  if (!item) return;
 
-  // 기존 장착 해제 시 환불 없음 (렌탈 개념)
+  // 이미 구매한 아이템이면 취소 및 환불
+  if (SHOP.equipped[part] && SHOP.equipped[part].id === itemId) {
+    SHOP.points += item.price;
+    SHOP.equipped[part] = null;
+    updateShopUI();
+    renderShopItems();
+    return;
+  }
+
+  if (SHOP.points < item.price) return;
   SHOP.equipped[part] = item;
   SHOP.points -= item.price;
 
