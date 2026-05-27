@@ -796,12 +796,13 @@ function renderShopItems() {
     const isEq      = eq && eq.id === item.id;
     const canAfford = SHOP.points >= item.price;
     const btnClass  = isEq ? 'equipped-btn' : canAfford ? 'can-buy' : 'no-money';
-    const btnText   = isEq ? '✅ 장착중' : canAfford ? `${item.price}p 구매` : `${item.price}p`;
+    const gradeEmoji = item.stat===1 ? '🇨' : item.stat===2 ? '🇧' : item.stat===3 ? '🇦' : '🇸';
+    const btnText   = isEq ? '✅ 장착중' : canAfford ? `🪙${item.price}p` : `🪙${item.price}p`;
     return `
       <div class="item-row ${isEq?'equipped':''}">
         <div class="item-emoji">${item.emoji}</div>
         <div class="item-info">
-          <div class="item-name">${item.name}</div>
+          <div class="item-name">${gradeEmoji} ${item.name}</div>
           <div class="item-meta">${rpsLabel} <span class="item-stat">+${item.stat}</span></div>
         </div>
         <button class="item-btn ${btnClass}"
