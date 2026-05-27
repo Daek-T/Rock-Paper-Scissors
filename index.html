@@ -736,9 +736,11 @@ function show(id) {
   document.querySelectorAll('.screen').forEach(s => {
     s.hidden = true;
     s.style.display = 'none';
+    s.style.zIndex = '1';
   });
   target.hidden = false;
   target.style.display = '';
+  target.style.zIndex = '10';
   window.scrollTo(0, 0);
 }
 
