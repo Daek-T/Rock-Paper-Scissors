@@ -326,6 +326,49 @@ body {
 @media (min-width: 480px) {
   .screen { padding: 24px 24px 80px; }
 }
+
+/* ── 상점 ── */
+.shop-points { font-size: var(--f-md); color: var(--accent); font-weight: 700; }
+
+.avatar-wrap {
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: 10px; padding: 16px; margin-bottom: 16px; text-align: center;
+}
+.avatar-box {
+  display: flex; justify-content: center; gap: 12px;
+  font-size: clamp(36px,10vw,52px); margin-bottom: 12px;
+}
+.avatar-layer { transition: all .2s; }
+.avatar-stats { display: flex; justify-content: center; gap: 10px; flex-wrap: wrap; }
+
+.shop-tabs { display: flex; gap: 0; margin-bottom: 12px; border: 1px solid var(--border); border-radius: 8px; overflow: hidden; }
+.shop-tab {
+  flex: 1; padding: 10px; background: var(--surface);
+  border: none; color: var(--muted); font-family: 'Noto Sans KR',sans-serif;
+  font-size: var(--f-sm); font-weight: 700; cursor: pointer; transition: all .15s;
+}
+.shop-tab.active { background: var(--accent); color: #0d0f14; }
+
+.item-list { display: flex; flex-direction: column; gap: 8px; }
+.item-row {
+  display: flex; align-items: center; gap: 12px;
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: 8px; padding: 12px 14px;
+}
+.item-row.equipped { border-color: var(--accent); }
+.item-emoji { font-size: 28px; flex-shrink: 0; }
+.item-info  { flex: 1; }
+.item-name  { font-size: var(--f-sm); font-weight: 700; color: #fff; margin-bottom: 2px; }
+.item-meta  { font-family: 'JetBrains Mono',monospace; font-size: var(--f-xs); color: var(--muted); }
+.item-stat  { color: var(--accent); font-weight: 700; }
+.item-btn {
+  font-family: 'Noto Sans KR',sans-serif; font-size: var(--f-xs); font-weight: 700;
+  padding: 7px 14px; border-radius: 6px; cursor: pointer; border: 1px solid var(--border);
+  background: var(--surface2); color: var(--text); transition: all .15s; white-space: nowrap;
+}
+.item-btn.can-buy  { border-color: var(--accent); color: var(--accent); }
+.item-btn.equipped-btn { border-color: var(--win); color: var(--win); }
+.item-btn.no-money { opacity: .4; cursor: not-allowed; }
 </style>
 </head>
 <body>
@@ -334,8 +377,51 @@ body {
 <div class="screen" id="screen-start">
 <div class="end-wrap">
   <div class="start-emoji">✌🏻✊🏻✋🏻</div>
-  <div class="start-label">QA Prototype v0.1.2</div>
+  <div class="start-label">QA Prototype v0.1.3</div>
   <div class="start-title">가위바위보</div>
+  <button class="btn primary" onclick="show('shop')" style="font-size:15px;padding:13px 36px;margin-top:8px;">🛒 상점으로</button>
+</div>
+</div>
+
+<!-- ════ SHOP ════ -->
+<div class="screen" id="screen-shop" hidden>
+  <div class="page-nav">
+    <div class="nav-label">상점</div>
+    <div class="shop-points mono">💰 <span id="shop-pts">10000</span>p</div>
+  </div>
+
+  <!-- 아바타 프리뷰 -->
+  <div class="avatar-wrap">
+    <div class="avatar-box">
+      <div class="avatar-layer" id="av-head">❓</div>
+      <div class="avatar-layer" id="av-top">❓</div>
+      <div class="avatar-layer" id="av-bottom">❓</div>
+    </div>
+    <div class="avatar-stats" id="avatar-stats">
+      <span class="chip sc">✌🏻 가위 <b id="av-sc">1</b></span>
+      <span class="chip rk">✊🏻 바위 <b id="av-rk">1</b></span>
+      <span class="chip pp">✋🏻 보 <b id="av-pp">1</b></span>
+    </div>
+  </div>
+
+  <!-- 파츠별 탭 -->
+  <div class="shop-tabs">
+    <button class="shop-tab active" onclick="switchTab('head')" id="tab-head">머리</button>
+    <button class="shop-tab" onclick="switchTab('top')"    id="tab-top">상의</button>
+    <button class="shop-tab" onclick="switchTab('bottom')" id="tab-bottom">하의</button>
+  </div>
+  <div id="shop-items"></div>
+
+  <div style="text-align:center;margin-top:16px;">
+    <button class="btn primary" onclick="goToDiff()" style="font-size:15px;padding:13px 36px;">⚔️ 게임 시작</button>
+  </div>
+</div>
+
+<!-- ════ DIFF SELECT ════ -->
+<div class="screen" id="screen-diff" hidden>
+<div class="end-wrap">
+  <div class="start-emoji">✌🏻✊🏻✋🏻</div>
+  <div class="start-label">난이도 선택</div>
   <div class="diff-list">
     <button class="diff-btn easy" onclick="selectDiff('easy')">
       <div class="diff-name">🟢 쉬움</div>
@@ -542,14 +628,45 @@ const MV_KR    = { scissors:'가위', rock:'바위', paper:'보' };
 // STATE
 // ═══════════════════════════════════════════════════════
 
+// ── 아이템 데이터 ──────────────────────────────────────
+const ITEMS = {
+  head: [
+    { id:'h1', name:'낡은 모자',   stat:1, price:10,  emoji:'🧢' },
+    { id:'h2', name:'야구 모자',   stat:2, price:25,  emoji:'👒' },
+    { id:'h3', name:'비니',        stat:3, price:35,  emoji:'🎩' },
+    { id:'h4', name:'왕관',        stat:4, price:50,  emoji:'👑' },
+  ],
+  top: [
+    { id:'t1', name:'낡은 티셔츠', stat:1, price:10,  emoji:'👕' },
+    { id:'t2', name:'후드티',      stat:2, price:25,  emoji:'🧥' },
+    { id:'t3', name:'자켓',        stat:3, price:35,  emoji:'🥋' },
+    { id:'t4', name:'갑옷',        stat:4, price:50,  emoji:'🛡️' },
+  ],
+  bottom: [
+    { id:'b1', name:'낡은 바지',   stat:1, price:10,  emoji:'👖' },
+    { id:'b2', name:'청바지',      stat:2, price:25,  emoji:'🩲' },
+    { id:'b3', name:'트레이닝',    stat:3, price:35,  emoji:'🩳' },
+    { id:'b4', name:'전투복',      stat:4, price:50,  emoji:'👟' },
+  ],
+};
+
+const PART_KR   = { head:'머리', top:'상의', bottom:'하의' };
+const PART_RPS  = { head:'바위 ✊🏻', top:'가위 ✌🏻', bottom:'보 ✋🏻' };
+const PART_STAT = { head:'rock', top:'scissors', bottom:'paper' };
+
+let SHOP = {
+  points: 10000,
+  equipped: { head: null, top: null, bottom: null },
+};
+
 let G = {
   diff: null,
   pChar: null, aChar: null,
   pHP: 0, aHP: 0,
   pMaxHP: 0, aMaxHP: 0,
   turn: 1,
-  history: [],      // 현재 1판의 히스토리
-  seriesHistory: [], // 3판 전체 히스토리 (hard용)
+  history: [],
+  seriesHistory: [],
   score: { p:0, a:0 },
   gameNum: 1,
   active: false,
@@ -591,6 +708,83 @@ function setRpsDisabled(d) {
 // ═══════════════════════════════════════════════════════
 // START
 // ═══════════════════════════════════════════════════════
+
+// ── 상점 로직 ──────────────────────────────────────────
+let currentTab = 'head';
+
+function goToDiff() { show('diff'); }
+
+function switchTab(part) {
+  currentTab = part;
+  ['head','top','bottom'].forEach(p => {
+    document.getElementById('tab-'+p).classList.toggle('active', p===part);
+  });
+  renderShopItems();
+}
+
+function renderShopItems() {
+  const items = ITEMS[currentTab];
+  const eq    = SHOP.equipped[currentTab];
+  const rpsLabel = PART_RPS[currentTab];
+  const list  = document.getElementById('shop-items');
+
+  list.innerHTML = `<div class="item-list">${items.map(item => {
+    const isEq      = eq && eq.id === item.id;
+    const canAfford = SHOP.points >= item.price;
+    const btnClass  = isEq ? 'equipped-btn' : canAfford ? 'can-buy' : 'no-money';
+    const btnText   = isEq ? '✅ 장착중' : canAfford ? `${item.price}p 구매` : `${item.price}p`;
+    return `
+      <div class="item-row ${isEq?'equipped':''}">
+        <div class="item-emoji">${item.emoji}</div>
+        <div class="item-info">
+          <div class="item-name">${item.name}</div>
+          <div class="item-meta">${rpsLabel} <span class="item-stat">+${item.stat}</span></div>
+        </div>
+        <button class="item-btn ${btnClass}"
+          onclick="buyItem('${currentTab}','${item.id}')"
+          ${isEq||!canAfford?'disabled':''}>
+          ${btnText}
+        </button>
+      </div>`;
+  }).join('')}</div>`;
+}
+
+function buyItem(part, itemId) {
+  const item = ITEMS[part].find(i => i.id === itemId);
+  if (!item || SHOP.points < item.price) return;
+
+  // 기존 장착 해제 시 환불 없음 (렌탈 개념)
+  SHOP.equipped[part] = item;
+  SHOP.points -= item.price;
+
+  updateShopUI();
+  renderShopItems();
+}
+
+function updateShopUI() {
+  document.getElementById('shop-pts').textContent = SHOP.points;
+
+  const parts = ['head','top','bottom'];
+  parts.forEach(p => {
+    const eq = SHOP.equipped[p];
+    document.getElementById('av-'+{head:'head',top:'top',bottom:'bottom'}[p]).textContent
+      = eq ? eq.emoji : '❓';
+  });
+
+  // 스탯 계산 (기본 1 + 장비)
+  const sc = 1 + (SHOP.equipped.top    ? SHOP.equipped.top.stat    : 0);
+  const rk = 1 + (SHOP.equipped.head   ? SHOP.equipped.head.stat   : 0);
+  const pp = 1 + (SHOP.equipped.bottom ? SHOP.equipped.bottom.stat : 0);
+  document.getElementById('av-sc').textContent = sc;
+  document.getElementById('av-rk').textContent = rk;
+  document.getElementById('av-pp').textContent = pp;
+}
+
+function openShop() {
+  updateShopUI();
+  switchTab('head');
+  show('shop');
+}
 
 function selectDiff(d) {
   G.diff = d;
@@ -699,6 +893,13 @@ function renderPreview() {
 // ═══════════════════════════════════════════════════════
 
 function startBattle() {
+  // 장비 스탯 반영 (기본 1 + 장비 옵션)
+  G.pChar = Object.assign({}, G.pChar, {
+    scissors: 1 + (SHOP.equipped.top    ? SHOP.equipped.top.stat    : 0),
+    rock:     1 + (SHOP.equipped.head   ? SHOP.equipped.head.stat   : 0),
+    paper:    1 + (SHOP.equipped.bottom ? SHOP.equipped.bottom.stat : 0),
+  });
+
   G.pHP = G.pMaxHP = G.pChar.hp;
   G.aHP = G.aMaxHP = G.aChar.hp;
   G.turn    = 1;
@@ -1060,6 +1261,7 @@ function nextGame() {
 function resetGame() {
   G = { diff:null, pChar:null, aChar:null, pHP:0, aHP:0, pMaxHP:0, aMaxHP:0,
         turn:1, history:[], seriesHistory:[], score:{p:0,a:0}, gameNum:1, active:false };
+  SHOP = { points:10000, equipped:{ head:null, top:null, bottom:null } };
   show('start');
 }
 
