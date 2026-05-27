@@ -513,7 +513,6 @@ body {
   <div class="preview-vs">
     <div class="prev-card me">
       <div class="prev-emoji" id="pv-p-emoji"></div>
-      <div class="prev-grade" id="pv-p-grade"></div>
       <div class="prev-name"  id="pv-p-name"></div>
       <div class="prev-hp"   id="pv-p-hp"></div>
       <div class="prev-stats" id="pv-p-stats"></div>
@@ -521,7 +520,6 @@ body {
     <div class="vs-badge">VS</div>
     <div class="prev-card">
       <div class="prev-emoji" id="pv-a-emoji"></div>
-      <div class="prev-grade" id="pv-a-grade"></div>
       <div class="prev-name"  id="pv-a-name"></div>
       <div class="prev-hp"   id="pv-a-hp"></div>
       <div class="prev-stats" id="pv-a-stats"></div>
@@ -797,7 +795,7 @@ function renderShopItems() {
     const canAfford = SHOP.points >= item.price;
     const btnClass  = isEq ? 'equipped-btn' : canAfford ? 'can-buy' : 'no-money';
     const gradeEmoji = item.stat===1 ? '🇨' : item.stat===2 ? '🇧' : item.stat===3 ? '🇦' : '🇸';
-    const btnText   = isEq ? '✅ 장착중' : canAfford ? `🪙${item.price}p` : `🪙${item.price}p`;
+    const btnText   = isEq ? '✅ 구매완료' : canAfford ? `🪙${item.price}p` : `🪙${item.price}p`;
     return `
       <div class="item-row ${isEq?'equipped':''}">
         <div class="item-emoji">${item.emoji}</div>
@@ -957,13 +955,11 @@ function renderPreview() {
   document.getElementById('pv-badge').innerHTML  = badge();
 
   document.getElementById('pv-p-emoji').textContent = pChar.emoji;
-  document.getElementById('pv-p-grade').innerHTML   = gradeSpan(pChar.grade);
   document.getElementById('pv-p-name').textContent  = pChar.name;
   document.getElementById('pv-p-hp').textContent    = `HP ${pChar.hp}`;
   document.getElementById('pv-p-stats').innerHTML   = statStr(pChar);
 
   document.getElementById('pv-a-emoji').textContent = aChar.emoji;
-  document.getElementById('pv-a-grade').innerHTML   = gradeSpan(aChar.grade);
   document.getElementById('pv-a-name').textContent  = aChar.name;
   document.getElementById('pv-a-hp').textContent    = `HP ${aChar.hp}`;
   document.getElementById('pv-a-stats').innerHTML   = statStr(aChar);
