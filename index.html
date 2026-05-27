@@ -403,15 +403,15 @@ body {
 <div class="tutorial-list">
   <div class="tut-row">
     <div class="tut-icon">🚶🏻</div>
-    <div class="tut-text">하루 100보당 1포인트, 최대 100p + 출석 10p를 획득해요</div>
+    <div class="tut-text">하루에 내가 걷는 만큼 포인트를 얻어요. 100걸음당 1p 씩, 하루에 최대 100p까지 얻을 수 있어요</div>
   </div>
   <div class="tut-row">
     <div class="tut-icon">🛒</div>
-    <div class="tut-text">포인트로 머리·상의·하의 장비를 구매해 스탯을 세팅해요</div>
+    <div class="tut-text">포인트로 머리와 상의, 하의 장비를 구매해 내 캐릭터의 스탯을 올릴 수 있어요. 스탯은 여러가지 미니게임에 사용돼요</div>
   </div>
   <div class="tut-row">
     <div class="tut-icon">👑</div>
-    <div class="tut-text">머리 장비는 바위 ✊🏻, 상의는 가위 ✌🏻, 하의는 보 ✋🏻 스탯이에요</div>
+    <div class="tut-text">미니게임 '가위바위보'에서는, 머리 장비는 바위, 상의는 가위, 하의는 보 스탯이에요</div>
   </div>
   <div class="tut-row">
     <div class="tut-icon">⚔️</div>
@@ -423,7 +423,7 @@ body {
   </div>
   <div class="tut-row">
     <div class="tut-icon">🌙</div>
-    <div class="tut-text">장비는 렌탈이에요. 매일 자정에 초기화되니 매일 걸어야 해요</div>
+    <div class="tut-text">장비는 구매가 아닌 렌탈이에요. 매일 자정에 초기화되니, 정산된 포인트로 장비를 다시 구매해주세요</div>
   </div>
   <div class="tut-row">
     <div class="tut-icon">💪🏻</div>
@@ -731,8 +731,14 @@ let G = {
 // ═══════════════════════════════════════════════════════
 
 function show(id) {
-  document.querySelectorAll('.screen').forEach(s => s.hidden = true);
-  document.getElementById('screen-' + id).hidden = false;
+  const target = document.getElementById('screen-' + id);
+  if (!target) { alert('화면 없음: screen-' + id); return; }
+  document.querySelectorAll('.screen').forEach(s => {
+    s.hidden = true;
+    s.style.display = 'none';
+  });
+  target.hidden = false;
+  target.style.display = '';
   window.scrollTo(0, 0);
 }
 
@@ -846,19 +852,17 @@ function selectDiff(d) {
   const sc = 1 + (SHOP.equipped.top    ? SHOP.equipped.top.stat    : 0);
   const rk = 1 + (SHOP.equipped.head   ? SHOP.equipped.head.stat   : 0);
   const pp = 1 + (SHOP.equipped.bottom ? SHOP.equipped.bottom.stat : 0);
-  const pTotal = sc + rk + pp;
-  const pHP = pTotal <= 3  ? 12
-            : pTotal <= 6  ? 14
-            : pTotal <= 9  ? 16
-            : pTotal <= 11 ? 18
+  const total = sc + rk + pp;
+  const pHP = total <= 3  ? 12
+            : total <= 6  ? 14
+            : total <= 9  ? 16
+            : total <= 11 ? 18
             : 20;
   G.pChar = Object.assign({}, PLAYER_BASE, { scissors:sc, rock:rk, paper:pp, hp:pHP });
   // AI: 플레이어 스탯 총합과 가장 가까운 캐릭터 배정
-  const pTotal = G.pChar.scissors + G.pChar.rock + G.pChar.paper;
   const all = Object.values(CHARS);
-  // 총합 차이가 가장 작은 캐릭터들 중 랜덤 선택
-  const minDiff = Math.min(...all.map(c => Math.abs((c.scissors+c.rock+c.paper) - pTotal)));
-  const candidates = all.filter(c => Math.abs((c.scissors+c.rock+c.paper) - pTotal) <= minDiff + 1);
+  const minDiff = Math.min(...all.map(c => Math.abs((c.scissors+c.rock+c.paper) - total)));
+  const candidates = all.filter(c => Math.abs((c.scissors+c.rock+c.paper) - total) <= minDiff + 1);
   G.aChar = candidates[Math.floor(Math.random() * candidates.length)];
   renderPreview();
   show('preview');
