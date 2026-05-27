@@ -791,14 +791,23 @@ function openShop() {
 function selectDiff(d) {
   G.diff = d;
   // 플레이어: 기본 스탯 1,1,1 + 장비 합산
-  G.pChar = Object.assign({}, PLAYER_BASE, {
-    scissors: 1 + (SHOP.equipped.top    ? SHOP.equipped.top.stat    : 0),
-    rock:     1 + (SHOP.equipped.head   ? SHOP.equipped.head.stat   : 0),
-    paper:    1 + (SHOP.equipped.bottom ? SHOP.equipped.bottom.stat : 0),
-  });
-  // AI: 랜덤 캐릭터
+  const sc = 1 + (SHOP.equipped.top    ? SHOP.equipped.top.stat    : 0);
+  const rk = 1 + (SHOP.equipped.head   ? SHOP.equipped.head.stat   : 0);
+  const pp = 1 + (SHOP.equipped.bottom ? SHOP.equipped.bottom.stat : 0);
+  const pTotal = sc + rk + pp;
+  const pHP = pTotal <= 3  ? 12
+            : pTotal <= 6  ? 14
+            : pTotal <= 9  ? 16
+            : pTotal <= 11 ? 18
+            : 20;
+  G.pChar = Object.assign({}, PLAYER_BASE, { scissors:sc, rock:rk, paper:pp, hp:pHP });
+  // AI: 플레이어 스탯 총합과 가장 가까운 캐릭터 배정
+  const pTotal = G.pChar.scissors + G.pChar.rock + G.pChar.paper;
   const all = Object.values(CHARS);
-  G.aChar = all[Math.floor(Math.random() * all.length)];
+  // 총합 차이가 가장 작은 캐릭터들 중 랜덤 선택
+  const minDiff = Math.min(...all.map(c => Math.abs((c.scissors+c.rock+c.paper) - pTotal)));
+  const candidates = all.filter(c => Math.abs((c.scissors+c.rock+c.paper) - pTotal) <= minDiff + 1);
+  G.aChar = candidates[Math.floor(Math.random() * candidates.length)];
   renderPreview();
   show('preview');
 }
