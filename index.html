@@ -1109,59 +1109,127 @@ function aiPick() {
     return softPick(score, 0.9);
   }
 
-  // ⚫ 도전: 역심리전(3수) + 패턴 교란 + 미끼(1턴) + 패턴 가중치 강화
+  // ⚫ 도전: Nash 균형 + 실시간 편향 감지 + 상황별 최적 전략
   if (diff === 'legend') {
-    // ① 패턴 가중치 강화 (기존 3 → 5)
-    const freq = { scissors:2, rock:2, paper:2 };
-    seriesHistory.forEach(h => freq[h.pm] += 5);
-    const total = seriesHistory.length * 5 + 6;
 
-    const aiFreq = { scissors:0, rock:0, paper:0 };
-    seriesHistory.forEach(h => aiFreq[h.am]++);
-    const aiTotal    = seriesHistory.length || 1;
+    // ── 1. Nash 균형 기반 혼합 전략 계산 ──────────────────
+    // 각 패의 기대 데미지 행렬 계산
+    const payoff = (my, opp) =>
+      BEATS[my] === opp ?  aChar[my]   // 내가 이기면 내 공격력
+    : BEATS[opp] === my ? -pChar[opp]  // 상대가 이기면 상대 공격력 손실
+    : 0;
+
+    // 반복 계산으로 Nash 균형 근사 (fictitious play, 100회 반복)
+    const nashFreq = { scissors:1, rock:1, paper:1 };
+    for (let i = 0; i < 100; i++) {
+      const nashTotal = nashFreq.scissors + nashFreq.rock + nashFreq.paper;
+      // 상대(플레이어)가 nashFreq 비율로 낸다고 가정할 때 AI 최적 응답
+      const nashScore = (m) => moves.reduce((s, pm) =>
+        s + (nashFreq[pm]/nashTotal) * payoff(m, pm), 0);
+      const best = moves.reduce((a,b) => nashScore(a)>=nashScore(b)?a:b);
+      nashFreq[best] += 1;
+    }
+    const nashTotal = nashFreq.scissors + nashFreq.rock + nashFreq.paper;
+    const nashProb  = { scissors: nashFreq.scissors/nashTotal,
+                        rock:     nashFreq.rock/nashTotal,
+                        paper:    nashFreq.paper/nashTotal };
+
+    // ── 2. 플레이어 실시간 편향 감지 ──────────────────────
+    // 전체 빈도
+    const freq = { scissors:1, rock:1, paper:1 };
+    seriesHistory.forEach(h => freq[h.pm] += 5);
+    const freqTotal = seriesHistory.length * 5 + 3;
+
+    // 상황별 조건부 빈도 (지고 있을 때, 이기고 있을 때, 비겼을 때)
+    const freqWhenLosing  = { scissors:1, rock:1, paper:1 };
+    const freqWhenWinning = { scissors:1, rock:1, paper:1 };
+    const freqAfterDraw   = { scissors:1, rock:1, paper:1 };
+    seriesHistory.forEach((h, i) => {
+      if (i === 0) return;
+      const prev = seriesHistory[i-1];
+      if (prev.pdmg > 0) freqWhenLosing[h.pm]  += 3; // 이전 턴 내가 데미지 받았을 때
+      if (prev.admg > 0) freqWhenWinning[h.pm] += 3; // 이전 턴 내가 데미지 줬을 때
+      if (prev.result === 'draw') freqAfterDraw[h.pm] += 3; // 이전 턴 비겼을 때
+    });
+
+    // AI 자신의 패턴 (교란용)
+    const aiFreq = { scissors:1, rock:1, paper:1 };
+    seriesHistory.forEach(h => aiFreq[h.am] += 2);
+    const aiTotal = seriesHistory.length * 2 + 3;
+
+    // ── 3. 상황 판단 ───────────────────────────────────────
     const isWinning  = aHP > pHP;
     const isCritical = remainTurns <= 3;
-    const aggression = Math.min(2.5, Math.max(0.5, (pHP - aHP) / 4 + 1));
+    const hpGap      = pHP - aHP; // 양수면 AI가 불리
+    const aggression = Math.min(3.0, Math.max(0.5, hpGap / 3 + 1));
 
-    // ③ 미끼 조건 완화 (2턴 → 1턴만 같아도 발동)
-    const isBaiting = seriesHistory.length >= 2;
+    // 현재 상황에 맞는 플레이어 패턴 선택
+    const lastResult = seriesHistory.length > 0
+      ? seriesHistory[seriesHistory.length-1].result : null;
+    const situFreq = lastResult === 'win'  ? freqWhenLosing   // AI가 이겼으면 플레이어는 지고 있는 상황
+                   : lastResult === 'lose' ? freqWhenWinning  // AI가 졌으면 플레이어는 이기고 있는 상황
+                   : lastResult === 'draw' ? freqAfterDraw
+                   : freq;
+    const situTotal = Object.values(situFreq).reduce((a,b)=>a+b,0);
 
+    // ── 4. 역심리전 4수 ────────────────────────────────────
+    const aiMostFreq = Object.keys(aiFreq).reduce((a,b) => aiFreq[a]>=aiFreq[b]?a:b);
+    const meta1 = BEATS_BY[aiMostFreq]; // 플레이어 예상 카운터
+    const meta2 = BEATS_BY[meta1];      // 2수
+    const meta3 = BEATS_BY[meta2];      // 3수
+    const meta4 = BEATS_BY[meta3];      // 4수
+
+    // ── 5. 최종 점수 계산 ──────────────────────────────────
     const score = (m) => {
-      const baseVal = expectVal(m);
+      // Nash 균형 기반 기본 점수
+      const nashVal = nashProb[m] * 10;
 
-      // ① 패턴 기반 가중치 (강화)
-      const pmProb = moves.reduce((sum, pm) => {
-        const prob = freq[pm] / total;
+      // 전체 패턴 기반
+      const patternVal = moves.reduce((sum, pm) => {
+        const prob = freq[pm] / freqTotal;
         return sum + prob * (BEATS[m]===pm ? aChar[m] : BEATS[pm]===m ? -pChar[pm] : 0);
       }, 0);
 
-      // ② 역심리전 3수: 플레이어 → AI 예측 → 카운터 → 카운터의 카운터 → 그 카운터
-      const aiMostFreq   = Object.keys(aiFreq).reduce((a,b) => aiFreq[a]>=aiFreq[b]?a:b);
-      const step1 = BEATS_BY[aiMostFreq];  // 플레이어가 낼 카운터
-      const step2 = BEATS_BY[step1];       // 그 카운터의 카운터 (2수)
-      const step3 = BEATS_BY[step2];       // 그 카운터의 카운터의 카운터 (3수)
-      const metaBonus = m === step3 ? 8 : m === step2 ? 3 : 0;
+      // 상황별 조건부 패턴 기반
+      const situVal = moves.reduce((sum, pm) => {
+        const prob = situFreq[pm] / situTotal;
+        return sum + prob * (BEATS[m]===pm ? aChar[m]*1.5 : BEATS[pm]===m ? -pChar[pm]*1.5 : 0);
+      }, 0);
 
-      // 패턴 교란
-      const aiUsageRate = (aiFreq[m]+0.5) / (aiTotal+1.5);
-      const diversityPenalty = aiUsageRate > 0.4 ? -3 : 0;
+      // 역심리전 4수 (각 수마다 가중치 차등)
+      const metaBonus = m === meta4 ? 12
+                      : m === meta3 ?  8
+                      : m === meta2 ?  4 : 0;
 
-      // ③ 미끼 역이용 (1턴만 같아도 발동)
+      // 패턴 교란 (AI 자신이 특정 패 40% 이상 시 강한 페널티)
+      const aiRate = aiFreq[m] / aiTotal;
+      const diversityPenalty = aiRate > 0.4 ? -8 : aiRate > 0.3 ? -3 : 0;
+
+      // 미끼 역이용 (직전 턴부터 발동, 가중치 최대)
       let baitBonus = 0;
-      if (isBaiting) {
-        const lastAm = seriesHistory[seriesHistory.length-1].am;
-        const baitCounter = BEATS_BY[lastAm];
-        baitBonus = m === BEATS_BY[baitCounter] ? 8 : 0;
+      if (seriesHistory.length >= 1) {
+        const lastAm    = seriesHistory[seriesHistory.length-1].am;
+        const baitCount = BEATS_BY[lastAm];
+        baitBonus = m === BEATS_BY[baitCount] ? 12 : 0;
       }
 
-      const urgency = isCritical && !isWinning ? aChar[m]*aggression*3
-                    : isWinning ? (baseVal>0?baseVal*2:0) : 0;
+      // 상황별 공격성 조절
+      const urgency = isCritical && !isWinning
+        ? aChar[m] * aggression * 4   // 위기: 극단적 공격
+        : isCritical && isWinning
+        ? (patternVal > 0 ? patternVal * 3 : 0) // 유리 + 막판: 안전하게 마무리
+        : !isWinning && hpGap > 5
+        ? aChar[m] * aggression * 2   // 크게 불리: 공격적으로
+        : isWinning
+        ? (patternVal > 0 ? patternVal * 2 : 0) // 유리: 안정 유지
+        : 0;
 
-      return pmProb*3.0 + baseVal*0.5 + metaBonus + diversityPenalty + baitBonus + urgency;
+      return nashVal*2.0 + patternVal*2.0 + situVal*3.0
+           + metaBonus + diversityPenalty + baitBonus + urgency;
     };
 
-    // ① 온도 0.7 → 0.3으로 낮춰서 거의 항상 최적해 선택
-    return softPick(score, 0.3);
+    // 온도 0.2: 사실상 항상 최적해
+    return softPick(score, 0.2);
   }
 
   return moves[Math.floor(Math.random() * 3)];
