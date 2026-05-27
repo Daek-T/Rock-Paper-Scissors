@@ -965,146 +965,96 @@ function aiPick() {
   const { diff, aChar, pChar, history, seriesHistory, pHP, aHP, turn } = G;
   const remainTurns = 11 - turn;
 
-  // ── 공통 헬퍼 ──────────────────────────────────────────
-  // 내가 m을 냈을 때 기대 데미지 (이기면 +내 공격력, 지면 -상대 공격력)
-  const expectVal = (m) => {
-    const win  =  aChar[m];          // 이겼을 때 줄 데미지
-    const lose = -pChar[BEATS[m]];   // 졌을 때 받을 데미지 (나를 이기는 패의 상대 공격력)
-    return win + lose;               // 기대값 (비기면 0이므로 무시)
-  };
+  const expectVal = (m) => aChar[m] - pChar[BEATS[m]];
 
-  // 세 패 중 가장 높은 값의 패 반환
   const bestBy = (scoreFn) =>
     moves.reduce((a, b) => scoreFn(a) >= scoreFn(b) ? a : b);
 
-  // ── 🟢 쉬움: 본인 스탯만, 이번 턴만, 히스토리 없음 ──
+  const softPick = (scoreFn, temp=1.5) => {
+    const scores = moves.map(m => Math.exp(scoreFn(m) / temp));
+    const total  = scores.reduce((a,b) => a+b, 0);
+    let r = Math.random() * total;
+    for (let i = 0; i < moves.length; i++) { r -= scores[i]; if (r <= 0) return moves[i]; }
+    return moves[moves.length-1];
+  };
+
+  // 🟢 쉬움: 최고 스탯 70% + 랜덤 30%
   if (diff === 'easy') {
-    return bestBy(m => aChar[m]);
+    return Math.random() < 0.70 ? bestBy(m => aChar[m]) : moves[Math.floor(Math.random()*3)];
   }
 
-  // ── 🟡 중간: 본인+상대 스탯, 이번+다음 턴, 현재 판 히스토리 ──
+  // 🟡 중간: 패턴 분석 강화
   if (diff === 'normal') {
-    // 현재 판 히스토리로 플레이어 패턴 파악
     const freq = { scissors:0, rock:0, paper:0 };
     history.forEach(h => freq[h.pm]++);
-    const total = history.length || 1;
-
-    // 각 패의 2턴 기대값 = 이번 턴 기대값 + 다음 턴 예상
+    const total = history.length + 3;
     const score = (m) => {
-      // 이번 턴: 내가 m을 냈을 때 기대값
       const thisVal = expectVal(m);
-      // 다음 턴: 플레이어가 자주 낸 패를 또 낼 확률로 가중 기대값
       const nextVal = moves.reduce((sum, pm) => {
-        const prob = (freq[pm] + 0.5) / (total + 1.5); // 라플라스 평활
-        const bestCounter = bestBy(am => aChar[am] * (BEATS[am] === pm ? 1 : 0));
-        return sum + prob * aChar[bestCounter];
+        const prob = (freq[pm] + 1) / total;
+        const gain = BEATS[m] === pm ? aChar[m] : (BEATS[pm] === m ? -pChar[pm] : 0);
+        return sum + prob * gain;
       }, 0);
-      return thisVal + nextVal * 0.5; // 다음 턴은 50% 가중
+      return thisVal * 0.4 + nextVal * 1.0;
     };
-    return bestBy(score);
+    return softPick(score, 1.2);
   }
 
-  // ── 🔴 어려움: 전 스탯+HP+턴, 3판 전체 히스토리 ──
+  // 🔴 어려움: 패턴 가중치 2배 + HP/턴 상황 판단
   if (diff === 'hard') {
-    // 3판 전체 히스토리로 플레이어 패턴 파악
-    const freq = { scissors:1, rock:1, paper:1 }; // 라플라스 초기값
-    seriesHistory.forEach(h => freq[h.pm] += 2);
-    const total = seriesHistory.length * 2 + 3;
-
-    // 상황 판단: 내가 이기고 있는지
-    const hpDiff = aHP - pHP; // 양수면 내가 유리 (상대 HP가 내 HP보다 낮음)
-    const isWinning = hpDiff > 0;
-    const isCritical = remainTurns <= 3; // 마지막 3턴
-
+    const freq = { scissors:2, rock:2, paper:2 };
+    seriesHistory.forEach(h => freq[h.pm] += 3);
+    const total = seriesHistory.length * 3 + 6;
+    const isWinning  = aHP > pHP;
+    const isCritical = remainTurns <= 3;
+    const aggression = Math.min(2.0, Math.max(0.5, (pHP - aHP) / 5 + 1));
     const score = (m) => {
-      // 기본 기대값
       const baseVal = expectVal(m);
-
-      // 플레이어 패턴 기반 가중치
-      const pmProb = moves.reduce((sum, pm) => {
+      const pmProb  = moves.reduce((sum, pm) => {
         const prob = freq[pm] / total;
-        const dmgIfWin  = BEATS[m] === pm ?  aChar[m] : 0; // m이 pm을 이기면
-        const dmgIfLose = BEATS[pm] === m ? -pChar[pm] : 0; // pm이 m을 이기면
-        return sum + prob * (dmgIfWin + dmgIfLose);
+        return sum + prob * (BEATS[m]===pm ? aChar[m] : BEATS[pm]===m ? -pChar[pm] : 0);
       }, 0);
-
-      // 상황별 전략 조정
-      let situationBonus = 0;
-      if (isCritical && !isWinning) {
-        // 위기: 내 최고 공격력 패에 가중치
-        situationBonus = aChar[m] * 2;
-      } else if (isWinning && remainTurns > 3) {
-        // 유리: 안정적 기대값 선호 (큰 리스크 회피)
-        situationBonus = baseVal > 0 ? baseVal : 0;
-      }
-
-      return pmProb + situationBonus;
+      const urgency = isCritical && !isWinning ? aChar[m]*aggression*2.5
+                    : isWinning ? (baseVal>0?baseVal*1.5:0) : 0;
+      return pmProb * 1.5 + baseVal * 0.5 + urgency;
     };
-    return bestBy(score);
+    return softPick(score, 0.9);
   }
 
-  // ── ⚫ 도전: 역심리전 + 패턴 교란 + 미끼 전략 ──
+  // ⚫ 도전: 역심리전 + 패턴 교란 + 미끼
   if (diff === 'legend') {
-    // 3판 전체 히스토리 빈도 분석
-    const freq = { scissors:1, rock:1, paper:1 };
-    seriesHistory.forEach(h => freq[h.pm] += 2);
-    const total = seriesHistory.length * 2 + 3;
-
-    // AI 자신의 최근 패턴 분석 (교란용)
+    const freq = { scissors:2, rock:2, paper:2 };
+    seriesHistory.forEach(h => freq[h.pm] += 3);
+    const total = seriesHistory.length * 3 + 6;
     const aiFreq = { scissors:0, rock:0, paper:0 };
     seriesHistory.forEach(h => aiFreq[h.am]++);
-    const aiTotal = seriesHistory.length || 1;
-
-    // 상황 판단
-    const hpDiff    = aHP - pHP;
-    const isWinning = hpDiff > 0;
+    const aiTotal    = seriesHistory.length || 1;
+    const isWinning  = aHP > pHP;
     const isCritical = remainTurns <= 3;
-    const isBaiting  = seriesHistory.length >= 4 &&
-      seriesHistory.slice(-3).every(h => h.am === seriesHistory[seriesHistory.length-1].am);
-    // 최근 3턴 AI가 같은 패를 냈으면 미끼가 심어진 상태 → 역이용
+    const aggression = Math.min(2.5, Math.max(0.5, (pHP - aHP) / 4 + 1));
+    const isBaiting  = seriesHistory.length >= 3 &&
+      seriesHistory.slice(-2).every(h => h.am === seriesHistory[seriesHistory.length-1].am);
 
     const score = (m) => {
-      // ① 기본 기대값 (어려움과 동일)
       const baseVal = expectVal(m);
-
-      // ② 플레이어 패턴 기반 가중치
-      const pmProb = moves.reduce((sum, pm) => {
+      const pmProb  = moves.reduce((sum, pm) => {
         const prob = freq[pm] / total;
-        const dmgIfWin  = BEATS[m] === pm ?  aChar[m] : 0;
-        const dmgIfLose = BEATS[pm] === m ? -pChar[pm] : 0;
-        return sum + prob * (dmgIfWin + dmgIfLose);
+        return sum + prob * (BEATS[m]===pm ? aChar[m] : BEATS[pm]===m ? -pChar[pm] : 0);
       }, 0);
-
-      // ③ 역심리전: 플레이어가 AI 패턴을 읽고 카운터를 낼 것을 예측
-      // 플레이어가 예상할 AI의 패 → 그 카운터 → 그 카운터의 카운터
       const aiMostFreq  = Object.keys(aiFreq).reduce((a,b) => aiFreq[a]>=aiFreq[b]?a:b);
-      const playerGuess = BEATS_BY[aiMostFreq]; // 플레이어가 낼 것으로 예상되는 카운터
-      const metaCounter = BEATS_BY[playerGuess]; // 그 카운터의 카운터
-      const metaBonus   = m === metaCounter ? 3 : 0;
-
-      // ④ 패턴 교란: AI 자신이 특정 패를 너무 많이 냈으면 페널티
-      const aiUsageRate = (aiFreq[m] + 0.5) / (aiTotal + 1.5);
-      const diversityPenalty = aiUsageRate > 0.5 ? -2 : 0; // 50% 초과 사용 시 패널티
-
-      // ⑤ 미끼 역이용: 미끼가 심어진 상태면 플레이어가 카운터를 낼 것 → 그 카운터를 역이용
+      const metaBonus   = m === BEATS_BY[BEATS_BY[aiMostFreq]] ? 5 : 0;
+      const aiUsageRate = (aiFreq[m]+0.5) / (aiTotal+1.5);
+      const diversityPenalty = aiUsageRate > 0.4 ? -3 : 0;
       let baitBonus = 0;
       if (isBaiting) {
-        const baitMove    = seriesHistory[seriesHistory.length-1].am;
-        const baitCounter = BEATS_BY[baitMove]; // 플레이어가 낼 카운터
-        baitBonus = m === BEATS_BY[baitCounter] ? 4 : 0; // 그 카운터의 카운터
+        const baitCounter = BEATS_BY[seriesHistory[seriesHistory.length-1].am];
+        baitBonus = m === BEATS_BY[baitCounter] ? 6 : 0;
       }
-
-      // ⑥ 상황별 전략 (어려움과 동일)
-      let situationBonus = 0;
-      if (isCritical && !isWinning) {
-        situationBonus = aChar[m] * 2;
-      } else if (isWinning && remainTurns > 3) {
-        situationBonus = baseVal > 0 ? baseVal : 0;
-      }
-
-      return pmProb + metaBonus + diversityPenalty + baitBonus + situationBonus;
+      const urgency = isCritical && !isWinning ? aChar[m]*aggression*3
+                    : isWinning ? (baseVal>0?baseVal*2:0) : 0;
+      return pmProb*2.0 + baseVal*0.5 + metaBonus + diversityPenalty + baitBonus + urgency;
     };
-    return bestBy(score);
+    return softPick(score, 0.7);
   }
 
   return moves[Math.floor(Math.random() * 3)];
