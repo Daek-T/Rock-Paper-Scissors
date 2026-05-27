@@ -826,7 +826,15 @@ function buyItem(part, itemId) {
     return;
   }
 
-  if (SHOP.points < item.price) return;
+  // 다른 아이템으로 갈아탈 때 기존 아이템 환불
+  if (SHOP.equipped[part]) {
+    SHOP.points += SHOP.equipped[part].price;
+  }
+  if (SHOP.points < item.price) {
+    // 환불 후에도 잔액 부족하면 원복
+    if (SHOP.equipped[part]) SHOP.points -= SHOP.equipped[part].price;
+    return;
+  }
   SHOP.equipped[part] = item;
   SHOP.points -= item.price;
 
