@@ -1109,40 +1109,59 @@ function aiPick() {
     return softPick(score, 0.9);
   }
 
-  // ⚫ 도전: 역심리전 + 패턴 교란 + 미끼
+  // ⚫ 도전: 역심리전(3수) + 패턴 교란 + 미끼(1턴) + 패턴 가중치 강화
   if (diff === 'legend') {
+    // ① 패턴 가중치 강화 (기존 3 → 5)
     const freq = { scissors:2, rock:2, paper:2 };
-    seriesHistory.forEach(h => freq[h.pm] += 3);
-    const total = seriesHistory.length * 3 + 6;
+    seriesHistory.forEach(h => freq[h.pm] += 5);
+    const total = seriesHistory.length * 5 + 6;
+
     const aiFreq = { scissors:0, rock:0, paper:0 };
     seriesHistory.forEach(h => aiFreq[h.am]++);
     const aiTotal    = seriesHistory.length || 1;
     const isWinning  = aHP > pHP;
     const isCritical = remainTurns <= 3;
     const aggression = Math.min(2.5, Math.max(0.5, (pHP - aHP) / 4 + 1));
-    const isBaiting  = seriesHistory.length >= 3 &&
-      seriesHistory.slice(-2).every(h => h.am === seriesHistory[seriesHistory.length-1].am);
+
+    // ③ 미끼 조건 완화 (2턴 → 1턴만 같아도 발동)
+    const isBaiting = seriesHistory.length >= 2;
 
     const score = (m) => {
       const baseVal = expectVal(m);
-      const pmProb  = moves.reduce((sum, pm) => {
+
+      // ① 패턴 기반 가중치 (강화)
+      const pmProb = moves.reduce((sum, pm) => {
         const prob = freq[pm] / total;
         return sum + prob * (BEATS[m]===pm ? aChar[m] : BEATS[pm]===m ? -pChar[pm] : 0);
       }, 0);
-      const aiMostFreq  = Object.keys(aiFreq).reduce((a,b) => aiFreq[a]>=aiFreq[b]?a:b);
-      const metaBonus   = m === BEATS_BY[BEATS_BY[aiMostFreq]] ? 5 : 0;
+
+      // ② 역심리전 3수: 플레이어 → AI 예측 → 카운터 → 카운터의 카운터 → 그 카운터
+      const aiMostFreq   = Object.keys(aiFreq).reduce((a,b) => aiFreq[a]>=aiFreq[b]?a:b);
+      const step1 = BEATS_BY[aiMostFreq];  // 플레이어가 낼 카운터
+      const step2 = BEATS_BY[step1];       // 그 카운터의 카운터 (2수)
+      const step3 = BEATS_BY[step2];       // 그 카운터의 카운터의 카운터 (3수)
+      const metaBonus = m === step3 ? 8 : m === step2 ? 3 : 0;
+
+      // 패턴 교란
       const aiUsageRate = (aiFreq[m]+0.5) / (aiTotal+1.5);
       const diversityPenalty = aiUsageRate > 0.4 ? -3 : 0;
+
+      // ③ 미끼 역이용 (1턴만 같아도 발동)
       let baitBonus = 0;
       if (isBaiting) {
-        const baitCounter = BEATS_BY[seriesHistory[seriesHistory.length-1].am];
-        baitBonus = m === BEATS_BY[baitCounter] ? 6 : 0;
+        const lastAm = seriesHistory[seriesHistory.length-1].am;
+        const baitCounter = BEATS_BY[lastAm];
+        baitBonus = m === BEATS_BY[baitCounter] ? 8 : 0;
       }
+
       const urgency = isCritical && !isWinning ? aChar[m]*aggression*3
                     : isWinning ? (baseVal>0?baseVal*2:0) : 0;
-      return pmProb*2.0 + baseVal*0.5 + metaBonus + diversityPenalty + baitBonus + urgency;
+
+      return pmProb*3.0 + baseVal*0.5 + metaBonus + diversityPenalty + baitBonus + urgency;
     };
-    return softPick(score, 0.7);
+
+    // ① 온도 0.7 → 0.3으로 낮춰서 거의 항상 최적해 선택
+    return softPick(score, 0.3);
   }
 
   return moves[Math.floor(Math.random() * 3)];
@@ -1292,7 +1311,23 @@ function showSeriesEnd(w) {
 }
 
 function nextGame() {
-  show('diff');
+  // 난이도 유지, 스탯 재계산 후 바로 프리뷰로
+  const sc = 1 + (SHOP.equipped.top    ? SHOP.equipped.top.stat    : 0);
+  const rk = 1 + (SHOP.equipped.head   ? SHOP.equipped.head.stat   : 0);
+  const pp = 1 + (SHOP.equipped.bottom ? SHOP.equipped.bottom.stat : 0);
+  const total = sc + rk + pp;
+  const pHP = total <= 3  ? 12
+            : total <= 6  ? 14
+            : total <= 9  ? 16
+            : total <= 11 ? 18
+            : 20;
+  G.pChar = Object.assign({}, PLAYER_BASE, { scissors:sc, rock:rk, paper:pp, hp:pHP });
+  const all = Object.values(CHARS);
+  const minDiff = Math.min(...all.map(c => Math.abs((c.scissors+c.rock+c.paper) - total)));
+  const candidates = all.filter(c => Math.abs((c.scissors+c.rock+c.paper) - total) <= minDiff + 1);
+  G.aChar = candidates[Math.floor(Math.random() * candidates.length)];
+  renderPreview();
+  show('preview');
 }
 
 function resetGame() {
