@@ -940,7 +940,7 @@ function playRound(pm) {
 
   // Update HP + turn counter
   updateHP();
-  document.getElementById('bt-turn').textContent = G.turn;
+  document.getElementById('bt-turn').textContent = Math.min(G.turn, 10);
 
   // Result message
   const el = document.getElementById('bt-result');
