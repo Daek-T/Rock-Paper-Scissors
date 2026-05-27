@@ -659,6 +659,8 @@ let SHOP = {
   equipped: { head: null, top: null, bottom: null },
 };
 
+const PLAYER_BASE = { id:'player', name:'나', grade:'', hp:20, scissors:1, rock:1, paper:1, emoji:'🧑🏻' };
+
 let G = {
   diff: null,
   pChar: null, aChar: null,
@@ -788,8 +790,17 @@ function openShop() {
 
 function selectDiff(d) {
   G.diff = d;
-  renderCharSelect();
-  show('char-select');
+  // 플레이어: 기본 스탯 1,1,1 + 장비 합산
+  G.pChar = Object.assign({}, PLAYER_BASE, {
+    scissors: 1 + (SHOP.equipped.top    ? SHOP.equipped.top.stat    : 0),
+    rock:     1 + (SHOP.equipped.head   ? SHOP.equipped.head.stat   : 0),
+    paper:    1 + (SHOP.equipped.bottom ? SHOP.equipped.bottom.stat : 0),
+  });
+  // AI: 랜덤 캐릭터
+  const all = Object.values(CHARS);
+  G.aChar = all[Math.floor(Math.random() * all.length)];
+  renderPreview();
+  show('preview');
 }
 
 // ═══════════════════════════════════════════════════════
@@ -893,13 +904,6 @@ function renderPreview() {
 // ═══════════════════════════════════════════════════════
 
 function startBattle() {
-  // 장비 스탯 반영 (기본 1 + 장비 옵션)
-  G.pChar = Object.assign({}, G.pChar, {
-    scissors: 1 + (SHOP.equipped.top    ? SHOP.equipped.top.stat    : 0),
-    rock:     1 + (SHOP.equipped.head   ? SHOP.equipped.head.stat   : 0),
-    paper:    1 + (SHOP.equipped.bottom ? SHOP.equipped.bottom.stat : 0),
-  });
-
   G.pHP = G.pMaxHP = G.pChar.hp;
   G.aHP = G.aMaxHP = G.aChar.hp;
   G.turn    = 1;
@@ -1204,8 +1208,7 @@ function showSeriesEnd(w) {
 }
 
 function nextGame() {
-  renderCharSelect();
-  show('char-select');
+  show('diff');
 }
 
 function resetGame() {
