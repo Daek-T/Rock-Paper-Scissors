@@ -327,6 +327,16 @@ body {
   .screen { padding: 24px 24px 80px; }
 }
 
+/* ── 튜토리얼 ── */
+.tutorial-list { display: flex; flex-direction: column; gap: 4px; }
+.tut-row {
+  display: flex; align-items: center; gap: 14px;
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: 8px; padding: 14px;
+}
+.tut-icon { font-size: 28px; flex-shrink: 0; width: 36px; text-align: center; }
+.tut-text { font-size: var(--f-sm); color: var(--text); line-height: 1.5; }
+
 /* ── 상점 ── */
 .shop-points { font-size: var(--f-md); color: var(--accent); font-weight: 700; }
 
@@ -379,7 +389,47 @@ body {
   <div class="start-emoji">✌🏻✊🏻✋🏻</div>
   <div class="start-label">QA Prototype v0.1.3</div>
   <div class="start-title">가위바위보</div>
-  <button class="btn primary" onclick="openShop()" style="font-size:15px;padding:13px 36px;margin-top:8px;">🛒 상점으로</button>
+  <button class="btn primary" onclick="show('tutorial')" style="font-size:15px;padding:13px 36px;margin-top:8px;">📖 게임 방법</button>
+</div>
+</div>
+
+<!-- ════ TUTORIAL ════ -->
+<div class="screen" id="screen-tutorial" hidden>
+<div class="page-nav">
+  <div class="nav-label">게임 방법</div>
+</div>
+<div class="tutorial-list">
+  <div class="tut-row">
+    <div class="tut-icon">🚶🏻</div>
+    <div class="tut-text">하루 100보당 1포인트, 최대 100p + 출석 10p를 획득해요</div>
+  </div>
+  <div class="tut-row">
+    <div class="tut-icon">🛒</div>
+    <div class="tut-text">포인트로 머리·상의·하의 장비를 구매해 스탯을 세팅해요</div>
+  </div>
+  <div class="tut-row">
+    <div class="tut-icon">👑</div>
+    <div class="tut-text">머리 장비는 바위 ✊🏻, 상의는 가위 ✌🏻, 하의는 보 ✋🏻 스탯이에요</div>
+  </div>
+  <div class="tut-row">
+    <div class="tut-icon">⚔️</div>
+    <div class="tut-text">가위바위보에서 이기면 해당 패의 스탯만큼 상대 HP를 깎아요</div>
+  </div>
+  <div class="tut-row">
+    <div class="tut-icon">🏆</div>
+    <div class="tut-text">3판 2선승으로 승부를 가려요. 10턴 안에 끝나지 않으면 남은 HP로 판정해요</div>
+  </div>
+  <div class="tut-row">
+    <div class="tut-icon">🌙</div>
+    <div class="tut-text">장비는 렌탈이에요. 매일 자정에 초기화되니 매일 걸어야 해요</div>
+  </div>
+  <div class="tut-row">
+    <div class="tut-icon">💪🏻</div>
+    <div class="tut-text">장비 스탯 총합이 높을수록 최대 HP도 올라가요 (최대 HP 20)</div>
+  </div>
+</div>
+<div style="text-align:center; margin-top:24px;">
+  <button class="btn primary" onclick="openShop()" style="font-size:15px;padding:13px 36px;">🛒 상점으로</button>
 </div>
 </div>
 
