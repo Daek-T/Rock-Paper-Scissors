@@ -68,9 +68,11 @@ body {
   font-family: 'Noto Sans KR', sans-serif; font-size: var(--f-md); font-weight: 700;
   cursor: pointer; transition: all .15s;
 }
-.btn:hover { border-color: var(--accent); color: var(--accent); }
 .btn.primary { background: var(--accent); color: #0d0f14; border-color: var(--accent); }
-.btn.primary:hover { background: #d4b87a; }
+@media (hover: hover) {
+  .btn:hover { border-color: var(--accent); color: var(--accent); }
+  .btn.primary:hover { background: #d4b87a; }
+}
 
 /* ── PAGE NAV ── */
 .page-nav {
@@ -105,7 +107,7 @@ body {
   border: 1px solid var(--border); border-radius: 8px;
   background: var(--surface); cursor: pointer; text-align: left; transition: border-color .15s;
 }
-.diff-btn:hover { border-color: var(--accent); }
+@media (hover: hover) { .diff-btn:hover { border-color: var(--accent); } }
 .diff-btn.easy   { border-left: 3px solid var(--b); }
 .diff-btn.normal { border-left: 3px solid var(--a); }
 .diff-btn.hard   { border-left: 3px solid var(--s); }
@@ -126,7 +128,7 @@ body {
   background: var(--surface); border: 1px solid var(--border); border-radius: 8px;
   padding: clamp(8px,2vw,12px) clamp(6px,1.5vw,10px); cursor: pointer; transition: all .15s;
 }
-.char-card:hover { border-color: var(--accent); transform: translateY(-2px); }
+@media (hover: hover) { .char-card:hover { border-color: var(--accent); transform: translateY(-2px); } }
 .cc-emoji { font-size: var(--f-emoji-sm); margin-bottom: 4px; }
 .cc-name  { font-size: var(--f-sm); font-weight: 700; color: #fff; margin-bottom: 2px; }
 .cc-sub   { font-family: 'JetBrains Mono', monospace; font-size: var(--f-xs); color: var(--muted); margin-bottom: 6px; }
@@ -138,6 +140,10 @@ body {
 .ms-bar { height: 4px; background: var(--border); border-radius: 2px; overflow: hidden; }
 .ms-fill { height: 100%; border-radius: 2px; }
 .sc-bar { background: var(--sc); } .rk-bar { background: var(--rk); } .pp-bar { background: var(--pp); }
+.ms-label.stat-high { color: #e87070; }
+.ms-label.stat-low  { color: #6eb5c8; }
+.stat-high-bar { filter: brightness(1.1) saturate(1.2); opacity: 1; }
+.stat-low-bar  { filter: brightness(0.7) saturate(0.8); opacity: 0.7; }
 
 /* ════════════════════════════════════════
    PREVIEW
@@ -223,10 +229,12 @@ body {
   padding: clamp(8px,2.5vw,14px) 4px; cursor: pointer; text-align: center; transition: all .15s;
   font-family: 'Noto Sans KR', sans-serif;
 }
-.rps-btn:hover:not(:disabled) { transform: translateY(-3px); }
-.rps-btn.sc:hover:not(:disabled) { border-color: var(--sc); }
-.rps-btn.rk:hover:not(:disabled) { border-color: var(--rk); }
-.rps-btn.pp:hover:not(:disabled) { border-color: var(--pp); }
+@media (hover: hover) {
+  .rps-btn:hover:not(:disabled) { transform: translateY(-3px); }
+  .rps-btn.sc:hover:not(:disabled) { border-color: var(--sc); }
+  .rps-btn.rk:hover:not(:disabled) { border-color: var(--rk); }
+  .rps-btn.pp:hover:not(:disabled) { border-color: var(--pp); }
+}
 .rps-btn:disabled { opacity: .35; cursor: not-allowed; transform: none !important; }
 .rps-icon  { font-size: clamp(24px,6.5vw,32px); display: block; margin-bottom: 3px; }
 .rps-label { font-family: 'JetBrains Mono', monospace; font-size: var(--f-xs); color: var(--muted); display: block; margin-bottom: 3px; }
@@ -325,7 +333,7 @@ body {
 <!-- ════ START ════ -->
 <div class="screen" id="screen-start">
 <div class="end-wrap">
-  <div class="start-emoji">✌️✊🖐️</div>
+  <div class="start-emoji">✌🏻✊🏻✋🏻</div>
   <div class="start-label">QA Prototype v0.1.2</div>
   <div class="start-title">가위바위보</div>
   <div class="diff-list">
@@ -435,17 +443,17 @@ body {
 
   <div class="rps-row">
     <button class="rps-btn sc" onclick="playRound('scissors')">
-      <span class="rps-icon">✌️</span>
+      <span class="rps-icon">✌🏻</span>
       <span class="rps-label">가위</span>
       <span class="rps-atk" id="btn-sc">ATK 0</span>
     </button>
     <button class="rps-btn rk" onclick="playRound('rock')">
-      <span class="rps-icon">✊</span>
+      <span class="rps-icon">✊🏻</span>
       <span class="rps-label">바위</span>
       <span class="rps-atk" id="btn-rk">ATK 0</span>
     </button>
     <button class="rps-btn pp" onclick="playRound('paper')">
-      <span class="rps-icon">🖐️</span>
+      <span class="rps-icon">✋🏻</span>
       <span class="rps-label">보</span>
       <span class="rps-atk" id="btn-pp">ATK 0</span>
     </button>
@@ -527,7 +535,7 @@ const GRADE_INFO  = { C:{total:4,hp:12}, B:{total:6,hp:14}, A:{total:9,hp:16},  
 
 const BEATS    = { scissors:'paper', rock:'scissors', paper:'rock' };
 const BEATS_BY = { scissors:'rock',  rock:'paper',    paper:'scissors' }; // what beats this move
-const MV_EMOJI = { scissors:'✌️', rock:'✊', paper:'🖐️' };
+const MV_EMOJI = { scissors:'✌🏻', rock:'✊🏻', paper:'✋🏻' };
 const MV_KR    = { scissors:'가위', rock:'바위', paper:'보' };
 
 // ═══════════════════════════════════════════════════════
@@ -570,9 +578,9 @@ function gradeSpan(g) {
 
 function statStr(c) {
   return [
-    `<span class="prev-stat">✌️ 가위 <b>${c.scissors}</b></span>`,
-    `<span class="prev-stat">✊ 바위 <b>${c.rock}</b></span>`,
-    `<span class="prev-stat">🖐️ 보 &nbsp;<b>${c.paper}</b></span>`,
+    `<span class="prev-stat">✌🏻 가위 <b>${c.scissors}</b></span>`,
+    `<span class="prev-stat">✊🏻 바위 <b>${c.rock}</b></span>`,
+    `<span class="prev-stat">✋🏻 보 &nbsp;<b>${c.paper}</b></span>`,
   ].join('');
 }
 
@@ -624,21 +632,29 @@ function renderCharSelect() {
       card.innerHTML = `
         <div class="cc-emoji">${c.emoji}</div>
         <div class="cc-name">${c.name}</div>
-        ${miniStat('✌️가위', c.scissors, 'sc-bar')}
-        ${miniStat('✊바위', c.rock,     'rk-bar')}
-        ${miniStat('🖐️보',  c.paper,    'pp-bar')}
+        ${(()=>{
+          const stats = {scissors:c.scissors, rock:c.rock, paper:c.paper};
+          const vals = Object.values(stats);
+          const maxV = Math.max(...vals), minV = Math.min(...vals);
+          const sc = c.scissors===maxV?'stat-high':c.scissors===minV?'stat-low':'';
+          const rk = c.rock===maxV?'stat-high':c.rock===minV?'stat-low':'';
+          const pp = c.paper===maxV?'stat-high':c.paper===minV?'stat-low':'';
+          return miniStat('✌🏻가위',c.scissors,'sc-bar',sc)
+               + miniStat('✊🏻바위',c.rock,    'rk-bar',rk)
+               + miniStat('✋🏻보',  c.paper,   'pp-bar',pp);
+        })()}
       `;
       cg.appendChild(card);
     }
   }
 }
 
-function miniStat(label, val, cls) {
+function miniStat(label, val, cls, statClass='') {
   const pct = (val / 5) * 100;
   return `
     <div class="mini-stat">
-      <div class="ms-label"><span>${label}</span><span>${val}</span></div>
-      <div class="ms-bar"><div class="ms-fill ${cls}" style="width:${pct}%"></div></div>
+      <div class="ms-label ${statClass}"><span>${label}</span><span>${val}</span></div>
+      <div class="ms-bar"><div class="ms-fill ${cls} ${statClass}-bar" style="width:${pct}%"></div></div>
     </div>`;
 }
 
@@ -701,17 +717,17 @@ function renderBattle() {
   document.getElementById('bt-p-emoji').textContent = pChar.emoji;
   document.getElementById('bt-p-name').textContent  = pChar.name;
   document.getElementById('bt-p-grade').innerHTML   = gradeSpan(pChar.grade);
-  document.getElementById('bt-p-sc').textContent    = `✌️${pChar.scissors}`;
-  document.getElementById('bt-p-rk').textContent    = `✊${pChar.rock}`;
-  document.getElementById('bt-p-pp').textContent    = `🖐️${pChar.paper}`;
+  document.getElementById('bt-p-sc').textContent    = `✌🏻${pChar.scissors}`;
+  document.getElementById('bt-p-rk').textContent    = `✊🏻${pChar.rock}`;
+  document.getElementById('bt-p-pp').textContent    = `✋🏻${pChar.paper}`;
 
   // Right fighter (AI)
   document.getElementById('bt-a-emoji').textContent = aChar.emoji;
   document.getElementById('bt-a-name').textContent  = aChar.name;
   document.getElementById('bt-a-grade').innerHTML   = gradeSpan(aChar.grade);
-  document.getElementById('bt-a-sc').textContent    = `✌️${aChar.scissors}`;
-  document.getElementById('bt-a-rk').textContent    = `✊${aChar.rock}`;
-  document.getElementById('bt-a-pp').textContent    = `🖐️${aChar.paper}`;
+  document.getElementById('bt-a-sc').textContent    = `✌🏻${aChar.scissors}`;
+  document.getElementById('bt-a-rk').textContent    = `✊🏻${aChar.rock}`;
+  document.getElementById('bt-a-pp').textContent    = `✋🏻${aChar.paper}`;
 
   // ATK labels on buttons
   document.getElementById('btn-sc').textContent = `ATK ${pChar.scissors}`;
