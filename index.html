@@ -1109,17 +1109,42 @@ function aiPick() {
     return softPick(score, 0.9);
   }
 
-  // ⚫ 도전: 독심술 모드 — 항상 플레이어 마음을 꿰뚫는다
+  // ⚫ 도전: 독심술 모드 v2 — 시퀀스 학습 + 피해 최소화
   if (diff === 'legend') {
     const n = seriesHistory.length;
 
-    // ── 플레이어 패턴 다층 분석 ────────────────────────────
-
-    // 1. 전체 빈도
+    // ── 1. 기본 빈도 분석 ──────────────────────────────────
     const pFreq = { scissors:0, rock:0, paper:0 };
     seriesHistory.forEach(h => pFreq[h.pm]++);
 
-    // 2. 직전 자신의 패 이후 조건부 (내가 A를 냈을 때 다음에 B를 낸다)
+    // ── 2. 시퀀스 패턴 학습 (직전 2~3턴 연속 패턴) ─────────
+    // "A→B→?" 2턴 시퀀스
+    const seq2 = {};
+    seriesHistory.forEach((h,i) => {
+      if (i < 1) return;
+      const key = seriesHistory[i-1].pm + '_' + h.pm;
+      if (!seq2[key]) seq2[key] = { scissors:0, rock:0, paper:0 };
+    });
+    seriesHistory.forEach((h,i) => {
+      if (i < 2) return;
+      const key = seriesHistory[i-2].pm + '_' + seriesHistory[i-1].pm;
+      if (seq2[key]) seq2[key][h.pm]++;
+    });
+
+    // "A→B→C→?" 3턴 시퀀스
+    const seq3 = {};
+    seriesHistory.forEach((h,i) => {
+      if (i < 2) return;
+      const key = seriesHistory[i-2].pm+'_'+seriesHistory[i-1].pm+'_'+h.pm;
+      if (!seq3[key]) seq3[key] = { scissors:0, rock:0, paper:0 };
+    });
+    seriesHistory.forEach((h,i) => {
+      if (i < 3) return;
+      const key = seriesHistory[i-3].pm+'_'+seriesHistory[i-2].pm+'_'+seriesHistory[i-1].pm;
+      if (seq3[key]) seq3[key][h.pm]++;
+    });
+
+    // ── 3. 기존 조건부 분석 ────────────────────────────────
     const afterSelf = {};
     moves.forEach(m => afterSelf[m] = { scissors:0, rock:0, paper:0 });
     seriesHistory.forEach((h,i) => {
@@ -1127,7 +1152,6 @@ function aiPick() {
       afterSelf[seriesHistory[i-1].pm][h.pm]++;
     });
 
-    // 3. 직전 결과 이후 조건부 (이겼을 때, 졌을 때, 비겼을 때)
     const afterResult = {
       win:  { scissors:0, rock:0, paper:0 },
       lose: { scissors:0, rock:0, paper:0 },
@@ -1138,7 +1162,6 @@ function aiPick() {
       afterResult[seriesHistory[i-1].result][h.pm]++;
     });
 
-    // 4. 직전 상대(AI) 패 이후 조건부 (AI가 A를 냈을 때 플레이어가 B를 낸다)
     const afterAI = {};
     moves.forEach(m => afterAI[m] = { scissors:0, rock:0, paper:0 });
     seriesHistory.forEach((h,i) => {
@@ -1146,88 +1169,114 @@ function aiPick() {
       afterAI[seriesHistory[i-1].am][h.pm]++;
     });
 
-    // ── 다층 예측 앙상블 ───────────────────────────────────
-    // 여러 예측 모델을 합쳐서 가장 신뢰도 높은 예측을 만든다
-
     const lastPm     = n > 0 ? seriesHistory[n-1].pm     : null;
     const lastAm     = n > 0 ? seriesHistory[n-1].am     : null;
     const lastResult = n > 0 ? seriesHistory[n-1].result : null;
+    const last2Pm    = n > 1 ? seriesHistory[n-2].pm     : null;
+    const last3Pm    = n > 2 ? seriesHistory[n-3].pm     : null;
 
-    // 각 모델별 예측 확률 계산
+    // ── 4. 앙상블 예측 ─────────────────────────────────────
     const ensembleScore = (pm) => {
-      let score = 0;
-      let weight = 0;
+      let score = 0, weight = 0;
 
-      // 모델1: 전체 빈도 (가중치 1)
+      // 전체 빈도 (가중치 1)
       if (n > 0) {
-        score  += (pFreq[pm] / n) * 1;
-        weight += 1;
+        score += (pFreq[pm] / n) * 1; weight += 1;
       }
 
-      // 모델2: 직전 자신의 패 이후 (가중치 3 — 인간은 자기 직전 패 영향을 많이 받음)
+      // 직전 자기 패 이후 (가중치 3)
       if (lastPm) {
         const t = Object.values(afterSelf[lastPm]).reduce((a,b)=>a+b,0);
         if (t > 0) { score += (afterSelf[lastPm][pm] / t) * 3; weight += 3; }
       }
 
-      // 모델3: 직전 결과 이후 (가중치 4 — 결과에 따라 전략을 바꾸는 경향)
+      // 직전 결과 이후 (가중치 4)
       if (lastResult) {
         const t = Object.values(afterResult[lastResult]).reduce((a,b)=>a+b,0);
         if (t > 0) { score += (afterResult[lastResult][pm] / t) * 4; weight += 4; }
       }
 
-      // 모델4: 직전 AI 패 이후 (가중치 3 — 상대 패를 보고 다음 패를 정함)
+      // 직전 AI 패 이후 (가중치 3)
       if (lastAm) {
         const t = Object.values(afterAI[lastAm]).reduce((a,b)=>a+b,0);
         if (t > 0) { score += (afterAI[lastAm][pm] / t) * 3; weight += 3; }
       }
 
+      // 2턴 시퀀스 (가중치 6 — 연속 패턴은 매우 강한 신호)
+      if (last2Pm && lastPm) {
+        const key = last2Pm + '_' + lastPm;
+        if (seq2[key]) {
+          const t = Object.values(seq2[key]).reduce((a,b)=>a+b,0);
+          if (t > 0) { score += (seq2[key][pm] / t) * 6; weight += 6; }
+        }
+      }
+
+      // 3턴 시퀀스 (가중치 9 — 가장 강한 신호)
+      if (last3Pm && last2Pm && lastPm) {
+        const key = last3Pm + '_' + last2Pm + '_' + lastPm;
+        if (seq3[key]) {
+          const t = Object.values(seq3[key]).reduce((a,b)=>a+b,0);
+          if (t > 0) { score += (seq3[key][pm] / t) * 9; weight += 9; }
+        }
+      }
+
       return weight > 0 ? score / weight : 1/3;
     };
 
-    // 앙상블 예측 확률 정규화
-    const rawScores = { scissors: ensembleScore('scissors'), rock: ensembleScore('rock'), paper: ensembleScore('paper') };
-    const rawTotal  = rawScores.scissors + rawScores.rock + rawScores.paper;
-    const pPred     = {
-      scissors: rawScores.scissors / rawTotal,
-      rock:     rawScores.rock     / rawTotal,
-      paper:    rawScores.paper    / rawTotal,
+    // 예측 확률 정규화
+    const raw = { scissors: ensembleScore('scissors'), rock: ensembleScore('rock'), paper: ensembleScore('paper') };
+    const rawT = raw.scissors + raw.rock + raw.paper;
+    const pPred = {
+      scissors: raw.scissors / rawT,
+      rock:     raw.rock     / rawT,
+      paper:    raw.paper    / rawT,
     };
 
-    // 예측된 플레이어 패를 이기는 패 선택
     const predictedPm = moves.reduce((a,b) => pPred[a]>=pPred[b]?a:b);
-    const winningMove = BEATS_BY[predictedPm];
+    const certainty   = (pPred[predictedPm] - 1/3) / (2/3);
 
-    // ── 확신도 계산 ────────────────────────────────────────
-    // 예측이 얼마나 확실한가 (0.33이면 균등, 1이면 완전 확신)
-    const certainty = (pPred[predictedPm] - 1/3) / (2/3); // 0~1로 정규화
-
-    // ── AI 패턴 교란 ───────────────────────────────────────
-    // AI 자신도 패턴이 생기면 역이용당할 수 있으므로 교란
-    const aiFreq  = { scissors:0, rock:0, paper:0 };
-    seriesHistory.forEach(h => aiFreq[h.am]++);
-    const aiRate  = n > 0 ? aiFreq[winningMove] / n : 0;
-    const tooFreq = aiRate > 0.5; // 50% 이상 같은 패 쓰면 교란
-
-    // ── 최종 선택 ──────────────────────────────────────────
-    if (n < 2) {
-      // 초반: 기대값 기반으로 선택 (데이터 부족)
-      const ev = (m) => moves.reduce((s,pm) => {
-        return s + (1/3) * (BEATS[m]===pm ? aChar[m] : BEATS[pm]===m ? -pChar[pm] : 0);
+    // ── 5. 피해 최소화 선택 ────────────────────────────────
+    // 예측이 틀렸을 때 받는 기대 피해를 최소화하는 패 선택
+    // 각 패를 냈을 때: 이기면 +데미지, 지면 -피해
+    // 예측 확률을 가중치로 써서 기대 피해를 계산
+    const safeScore = (m) => {
+      return moves.reduce((s, pm) => {
+        const prob = pPred[pm];
+        const gain = BEATS[m]===pm ?  aChar[m]    // 이기면 이득
+                   : BEATS[pm]===m ? -pChar[pm]   // 지면 피해 (음수)
+                   : 0;
+        return s + prob * gain;
       }, 0);
-      return moves.reduce((a,b) => ev(a)>=ev(b)?a:b);
+    };
+
+    // ── 6. AI 패턴 교란 ────────────────────────────────────
+    const aiFreq = { scissors:0, rock:0, paper:0 };
+    seriesHistory.forEach(h => aiFreq[h.am]++);
+    const winMove   = BEATS_BY[predictedPm];
+    const aiRate    = n > 0 ? aiFreq[winMove] / n : 0;
+    const tooFreq   = aiRate > 0.5;
+
+    // ── 7. 최종 선택 ───────────────────────────────────────
+    if (n < 2) {
+      // 초반: 피해 최소화 선택
+      return moves.reduce((a,b) => safeScore(a)>=safeScore(b)?a:b);
     }
 
-    if (!tooFreq) {
-      // 예측 확신도에 따라 결정적으로 선택
-      // 확신도가 조금만 있어도 바로 예측 패로 이기는 패 선택
-      if (certainty > 0.05 || n >= 5) return winningMove;
+    if (!tooFreq && (certainty > 0.05 || n >= 3)) {
+      // 예측 확신 있음: 예측 패를 이기는 패 선택
+      // 단, 그 패의 안전 점수도 확인해서 너무 위험하면 안전 패로 대체
+      const safeFallback = moves.reduce((a,b) => safeScore(a)>=safeScore(b)?a:b);
+      const winSafe = safeScore(winMove);
+      const fallSafe = safeScore(safeFallback);
+      // 예측 승리 패가 안전 패보다 안전 점수가 크게 낮으면 안전 패 선택
+      return winSafe >= fallSafe - 1 ? winMove : safeFallback;
     }
 
-    // 패턴 교란 필요 시: 두 번째로 확률 높은 패를 이기는 패 선택
-    const secondPm = moves.filter(m => m !== predictedPm)
+    // 교란 필요 시: 두 번째 예측 + 안전 점수 고려
+    const secondPm    = moves.filter(m => m !== predictedPm)
       .reduce((a,b) => pPred[a]>=pPred[b]?a:b);
-    return BEATS_BY[secondPm];
+    const secondWin   = BEATS_BY[secondPm];
+    return safeScore(secondWin) >= safeScore(winMove) ? secondWin : winMove;
   }
   return moves[Math.floor(Math.random() * 3)];
 }
